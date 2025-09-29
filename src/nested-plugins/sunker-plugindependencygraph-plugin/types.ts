@@ -20,7 +20,7 @@ export interface ExtensionPoint {
   id: string; // extension point ID (e.g., "grafana/alerting/home")
   definingPlugin: string; // plugin that defines this extension point
   providers: string[]; // apps that provide content to this extension point
-  extensionType?: 'link' | 'component'; // type of extension
+  extensionType?: 'link' | 'component' | 'function'; // type of extension
 }
 
 export interface GraphData {

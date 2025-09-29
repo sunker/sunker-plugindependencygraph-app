@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { getDefaultOptions, processTableDataToGraph } from '../utils/dataProcessor';
+import { getDefaultOptions, processPluginDataToGraph } from '../utils/dataProcessor';
 
 import { DependencyGraph } from './DependencyGraph';
 import { PanelOptions } from '../types';
@@ -24,10 +24,10 @@ export const PluginDependencyGraphPanel: React.FC<Props> = ({
     [options]
   );
 
-  // Process the data into graph format
+  // Process the plugin data from data.json into graph format
   const graphData = useMemo(() => {
-    return processTableDataToGraph(data, mergedOptions);
-  }, [data, mergedOptions]);
+    return processPluginDataToGraph(mergedOptions);
+  }, [mergedOptions]); // Removed 'data' dependency since we no longer use panel data
 
   return <DependencyGraph data={graphData} options={mergedOptions} width={width} height={height} />;
 };
