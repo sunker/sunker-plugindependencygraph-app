@@ -150,7 +150,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     const margin = 80;
     const extensionPointSpacing = 65; // Decreased spacing between extension point boxes
     const groupSpacing = 40; // Much smaller distance between plugin groups
-    const rightSideX = width - margin - 420; // Position on right side, adjusted for wider boxes
+    const rightSideX = width - margin - 450; // Position on right side, adjusted for wider boxes
 
     let currentGroupY = margin - 5; // Very close to content consumer header
 
@@ -360,7 +360,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
         {/* Content Consumer Header */}
         <text
-          x={width - margin - 210}
+          x={width - margin - 225}
           y={30}
           textAnchor="middle"
           className={styles.sectionHeader}
@@ -371,7 +371,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
         {/* Dashed line under Content Consumer header */}
         <line
-          x1={width - margin - 420}
+          x1={width - margin - 450}
           y1={40}
           x2={width - margin}
           y2={40}
@@ -416,9 +416,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         return null;
       }
 
-      const groupWidth = 420; // Further increased width for longer extension IDs
+      const groupWidth = 450; // Further increased width for longer extension IDs
       const groupHeight = firstEpPos.groupHeight;
-      const extensionBoxWidth = 380; // Further increased width for full extension IDs
+      const extensionBoxWidth = 410; // Further increased width for full extension IDs
       const extensionBoxHeight = options.showDependencyTypes ? 60 : 40; // Adjust height based on whether we show type info
 
       return (
@@ -557,11 +557,10 @@ const getStyles = (theme: GrafanaTheme2, options: PanelOptions) => {
       }
     `,
     node: css`
-      transition: all 0.2s ease;
+      transition: filter 0.2s ease;
 
       &:hover {
-        filter: brightness(1.1);
-        transform: scale(1.02);
+        filter: brightness(1.05);
       }
     `,
     nodeBox: css`
@@ -640,11 +639,10 @@ const getStyles = (theme: GrafanaTheme2, options: PanelOptions) => {
       }
     `,
     extensionPointBox: css`
-      transition: all 0.2s ease;
+      transition: filter 0.2s ease;
 
       &:hover {
-        filter: brightness(1.1);
-        transform: translateY(-1px);
+        filter: brightness(1.05);
       }
     `,
     definingPluginLabel: css`

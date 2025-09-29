@@ -168,24 +168,34 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
   }
 
   // Apply filtering based on selectedContentConsumers
-  if (options.selectedContentConsumers && options.selectedContentConsumers.length > 0) {
-    const selectedConsumers = new Set(options.selectedContentConsumers);
-
-    // Filter extension points to only include those defined by selected consumers
-    filteredExtensionPoints = filteredExtensionPoints.filter((ep) => selectedConsumers.has(ep.definingPlugin));
-
-    // Filter dependencies to only include those targeting remaining extension points
-    const remainingExtensionPointIds = new Set(filteredExtensionPoints.map((ep) => ep.id));
-    filteredDependencies = filteredDependencies.filter((dep) => remainingExtensionPointIds.has(dep.target));
-
-    // Get set of content providers that still have valid dependencies
-    const activeContentProviders = new Set(filteredDependencies.map((dep) => dep.source));
-
-    // Filter nodes to only include selected consumers and active content providers
-    filteredNodes = filteredNodes.filter(
-      (node) => selectedConsumers.has(node.id) || activeContentProviders.has(node.id)
-    );
+  // If empty array, default to showing only active consumers (those with providers)
+  let consumersToShow: Set<string>;
+  if (!options.selectedContentConsumers || options.selectedContentConsumers.length === 0) {
+    // Default: show only consumers that have providers extending to them
+    const activeConsumers = new Set<string>();
+    filteredDependencies.forEach((dep) => {
+      const extensionPoint = filteredExtensionPoints.find((ep) => ep.id === dep.target);
+      if (extensionPoint) {
+        activeConsumers.add(extensionPoint.definingPlugin);
+      }
+    });
+    consumersToShow = activeConsumers;
+  } else {
+    consumersToShow = new Set(options.selectedContentConsumers);
   }
+
+  // Filter extension points to only include those defined by selected consumers
+  filteredExtensionPoints = filteredExtensionPoints.filter((ep) => consumersToShow.has(ep.definingPlugin));
+
+  // Filter dependencies to only include those targeting remaining extension points
+  const remainingExtensionPointIds = new Set(filteredExtensionPoints.map((ep) => ep.id));
+  filteredDependencies = filteredDependencies.filter((dep) => remainingExtensionPointIds.has(dep.target));
+
+  // Get set of content providers that still have valid dependencies
+  const activeContentProviders = new Set(filteredDependencies.map((dep) => dep.source));
+
+  // Filter nodes to only include selected consumers and active content providers
+  filteredNodes = filteredNodes.filter((node) => consumersToShow.has(node.id) || activeContentProviders.has(node.id));
 
   const result = {
     nodes: filteredNodes,
@@ -269,6 +279,45 @@ export const getAvailableContentConsumers = (data: PanelData | DataFrame[]): str
   });
 
   return Array.from(contentConsumers).sort();
+};
+
+// Extract active content consumers (those that actually have providers extending to them)
+export const getActiveContentConsumers = (data: PanelData | DataFrame[]): string[] => {
+  const series = Array.isArray(data) ? data : data.series;
+
+  if (!series.length) {
+    return [];
+  }
+
+  const activeConsumers = new Set<string>();
+
+  series.forEach((series) => {
+    if (!series.fields || series.fields.length === 0) {
+      return;
+    }
+
+    const fromAppField = series.fields.find((field) => field.name === 'from_app');
+    const toAppField = series.fields.find((field) => field.name === 'to_app');
+    const relationField = series.fields.find((field) => field.name === 'relation');
+
+    if (!fromAppField || !toAppField || !relationField) {
+      return;
+    }
+
+    for (let i = 0; i < series.length; i++) {
+      const fromApp = fromAppField.values[i];
+      const toApp = toAppField.values[i];
+      const relation = relationField.values[i];
+
+      if (fromApp && toApp && relation === 'extends') {
+        // Convert "grafana" to "grafana-core" for consistency
+        const definingPlugin = toApp === 'grafana' ? 'grafana-core' : toApp;
+        activeConsumers.add(definingPlugin);
+      }
+    }
+  });
+
+  return Array.from(activeConsumers).sort();
 };
 
 // Create sample data for demonstration that matches the new data format

@@ -1,5 +1,9 @@
 import { PanelPlugin, StandardEditorProps } from '@grafana/data';
-import { getAvailableContentConsumers, getAvailableContentProviders } from './utils/dataProcessor';
+import {
+  getActiveContentConsumers,
+  getAvailableContentConsumers,
+  getAvailableContentProviders,
+} from './utils/dataProcessor';
 
 import { MultiSelect } from '@grafana/ui';
 import { PanelOptions } from './types';
@@ -37,14 +41,15 @@ const ContentProviderMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ v
 // Custom multiselect editor for content consumers
 const ContentConsumerMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ value, onChange, context }) => {
   const availableConsumers = getAvailableContentConsumers(context.data);
+  const activeConsumers = getActiveContentConsumers(context.data);
 
   const options = availableConsumers.map((consumer) => ({
     label: consumer === 'grafana-core' ? 'Grafana Core' : consumer,
     value: consumer,
   }));
 
-  // If no value is set (empty array) or value is not defined, default to all consumers selected
-  const selectedValues = !value || value.length === 0 ? availableConsumers : value;
+  // If no value is set (empty array) or value is not defined, default to active consumers (those with providers)
+  const selectedValues = !value || value.length === 0 ? activeConsumers : value;
 
   return (
     <MultiSelect
@@ -53,11 +58,14 @@ const ContentConsumerMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ v
       onChange={(selected) => {
         // Extract values from SelectableValue objects
         const selectedValues = selected.map((item) => item.value).filter(Boolean) as string[];
-        // If all consumers are selected, store empty array to indicate "show all"
-        const newValue = selectedValues.length === availableConsumers.length ? [] : selectedValues;
+        // If active consumers are selected (default state), store empty array to indicate default behavior
+        const isDefaultSelection =
+          selectedValues.length === activeConsumers.length &&
+          activeConsumers.every((consumer) => selectedValues.includes(consumer));
+        const newValue = isDefaultSelection ? [] : selectedValues;
         onChange(newValue);
       }}
-      placeholder="Select content consumers to display"
+      placeholder="Select content consumers to display (active consumers by default)"
     />
   );
 };
@@ -85,7 +93,7 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
         id: 'contentConsumerFilter',
         path: 'selectedContentConsumers',
         name: 'Content Consumers',
-        description: 'Select which content consumer apps/plugins to display',
+        description: 'Select which content consumer apps/plugins to display (defaults to active consumers only)',
         editor: ContentConsumerMultiSelect,
         category: ['Filtering'],
       })
