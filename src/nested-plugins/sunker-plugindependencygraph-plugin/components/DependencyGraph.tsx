@@ -98,8 +98,8 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         node.id === isDragging
           ? {
               ...node,
-              x: Math.max(options.nodeSize, Math.min(width - options.nodeSize, newX)),
-              y: Math.max(options.nodeSize, Math.min(height - options.nodeSize, newY)),
+              x: Math.max(50, Math.min(width - 50, newX)),
+              y: Math.max(50, Math.min(height - 50, newY)),
             }
           : node
       )
@@ -467,7 +467,21 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
             // Get extension point details for type-specific styling
             const extensionPoint = data.extensionPoints?.find((ep) => ep.id === epId);
             const extensionType = extensionPoint?.extensionType || 'link';
-            const isComponent = extensionType === 'component';
+
+            // Get color based on extension type
+            const getExtensionColor = (type: string) => {
+              switch (type) {
+                case 'component':
+                  return options.componentExtensionColor || theme.colors.warning.main;
+                case 'function':
+                  return options.functionExtensionColor || theme.colors.error.main;
+                case 'link':
+                default:
+                  return options.linkExtensionColor || theme.colors.success.main;
+              }
+            };
+
+            const extensionColor = getExtensionColor(extensionType);
 
             return (
               <g key={epId}>
@@ -477,7 +491,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
                   y={epPos.y - extensionBoxHeight / 2}
                   width={extensionBoxWidth}
                   height={extensionBoxHeight}
-                  fill={isComponent ? theme.colors.warning.main : theme.colors.success.main}
+                  fill={extensionColor}
                   stroke={selectedExtensionPoint === epId ? theme.colors.primary.border : theme.colors.border.strong}
                   strokeWidth={selectedExtensionPoint === epId ? 3 : 2}
                   rx={6}
@@ -494,9 +508,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
                   y={options.showDependencyTypes ? epPos.y - 5 : epPos.y + 5}
                   textAnchor="middle"
                   className={styles.extensionPointLabel}
-                  fill={theme.colors.getContrastText(
-                    isComponent ? theme.colors.warning.main : theme.colors.success.main
-                  )}
+                  fill={theme.colors.getContrastText(extensionColor)}
                 >
                   {getExtensionDisplayName(epId)}
                 </text>
@@ -508,9 +520,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
                     y={epPos.y + 15}
                     textAnchor="middle"
                     className={styles.extensionTypeBadge}
-                    fill={theme.colors.getContrastText(
-                      isComponent ? theme.colors.warning.main : theme.colors.success.main
-                    )}
+                    fill={theme.colors.getContrastText(extensionColor)}
                   >
                     ({extensionType} extension)
                   </text>

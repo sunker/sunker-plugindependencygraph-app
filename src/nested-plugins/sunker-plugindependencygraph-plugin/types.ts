@@ -39,4 +39,9 @@ export interface PanelOptions {
   // Filtering options
   selectedContentProviders: string[];
   selectedContentConsumers: string[];
+
+  // Color options for extension types
+  linkExtensionColor: string;
+  componentExtensionColor: string;
+  functionExtensionColor: string;
 }

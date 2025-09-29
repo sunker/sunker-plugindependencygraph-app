@@ -360,12 +360,7 @@ export const getActiveContentConsumers = (): string[] => {
 // Create sample data for demonstration that matches the new data format
 export const createSampleData = (): GraphData => {
   // This will now use the actual data from data.json
-  return processPluginDataToGraph({
-    showDependencyTypes: true,
-    layoutType: 'hierarchical',
-    selectedContentProviders: [],
-    selectedContentConsumers: [],
-  });
+  return processPluginDataToGraph(getDefaultOptions());
 };
 
 export const getDefaultOptions = (): PanelOptions => ({
@@ -375,4 +370,9 @@ export const getDefaultOptions = (): PanelOptions => ({
   // Filtering options
   selectedContentProviders: [], // Empty array means all providers are selected
   selectedContentConsumers: [], // Empty array means all consumers are selected
+
+  // Color options for extension types
+  linkExtensionColor: '#37872d', // Green for link extensions
+  componentExtensionColor: '#ff9900', // Orange for component extensions
+  functionExtensionColor: '#e02f44', // Red for function extensions
 });

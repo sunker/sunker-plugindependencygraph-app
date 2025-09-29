@@ -12,7 +12,7 @@ import React from 'react';
 
 // Custom multiselect editor for content providers
 const ContentProviderMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ value, onChange, context }) => {
-  const availableProviders = getAvailableContentProviders(context.data);
+  const availableProviders = getAvailableContentProviders();
 
   const options = availableProviders.map((provider) => ({
     label: provider,
@@ -40,8 +40,8 @@ const ContentProviderMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ v
 
 // Custom multiselect editor for content consumers
 const ContentConsumerMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ value, onChange, context }) => {
-  const availableConsumers = getAvailableContentConsumers(context.data);
-  const activeConsumers = getActiveContentConsumers(context.data);
+  const availableConsumers = getAvailableContentConsumers();
+  const activeConsumers = getActiveContentConsumers();
 
   const options = availableConsumers.map((consumer) => ({
     label: consumer === 'grafana-core' ? 'Grafana Core' : consumer,
@@ -78,6 +78,29 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
         name: 'Show Dependency Types',
         description: 'Display the type of dependency on links',
         defaultValue: true,
+      })
+
+      // Color options
+      .addColorPicker({
+        path: 'linkExtensionColor',
+        name: 'Link Extension Color',
+        description: 'Color for link extension points',
+        defaultValue: '#37872d',
+        category: ['Color Options'],
+      })
+      .addColorPicker({
+        path: 'componentExtensionColor',
+        name: 'Component Extension Color',
+        description: 'Color for component extension points',
+        defaultValue: '#ff9900',
+        category: ['Color Options'],
+      })
+      .addColorPicker({
+        path: 'functionExtensionColor',
+        name: 'Function Extension Color',
+        description: 'Color for function extension points (addedFunctions)',
+        defaultValue: '#e02f44',
+        category: ['Color Options'],
       })
 
       // Filtering options
