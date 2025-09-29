@@ -1,10 +1,10 @@
 import { PanelPlugin, StandardEditorProps } from '@grafana/data';
+import { getAvailableContentConsumers, getAvailableContentProviders } from './utils/dataProcessor';
 
 import { MultiSelect } from '@grafana/ui';
 import { PanelOptions } from './types';
 import { PluginDependencyGraphPanel } from './components/PluginDependencyGraphPanel';
 import React from 'react';
-import { getAvailableContentProviders } from './utils/dataProcessor';
 
 // Custom multiselect editor for content providers
 const ContentProviderMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ value, onChange, context }) => {
@@ -34,6 +34,34 @@ const ContentProviderMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ v
   );
 };
 
+// Custom multiselect editor for content consumers
+const ContentConsumerMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ value, onChange, context }) => {
+  const availableConsumers = getAvailableContentConsumers(context.data);
+
+  const options = availableConsumers.map((consumer) => ({
+    label: consumer === 'grafana-core' ? 'Grafana Core' : consumer,
+    value: consumer,
+  }));
+
+  // If no value is set (empty array) or value is not defined, default to all consumers selected
+  const selectedValues = !value || value.length === 0 ? availableConsumers : value;
+
+  return (
+    <MultiSelect
+      options={options}
+      value={selectedValues}
+      onChange={(selected) => {
+        // Extract values from SelectableValue objects
+        const selectedValues = selected.map((item) => item.value).filter(Boolean) as string[];
+        // If all consumers are selected, store empty array to indicate "show all"
+        const newValue = selectedValues.length === availableConsumers.length ? [] : selectedValues;
+        onChange(newValue);
+      }}
+      placeholder="Select content consumers to display"
+    />
+  );
+};
+
 export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).setPanelOptions((builder) => {
   return (
     builder
@@ -51,6 +79,14 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
         name: 'Content Providers',
         description: 'Select which content provider apps to display',
         editor: ContentProviderMultiSelect,
+        category: ['Filtering'],
+      })
+      .addCustomEditor({
+        id: 'contentConsumerFilter',
+        path: 'selectedContentConsumers',
+        name: 'Content Consumers',
+        description: 'Select which content consumer apps/plugins to display',
+        editor: ContentConsumerMultiSelect,
         category: ['Filtering'],
       })
   );

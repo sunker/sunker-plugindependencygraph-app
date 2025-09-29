@@ -38,4 +38,5 @@ export interface PanelOptions {
 
   // Filtering options
   selectedContentProviders: string[];
+  selectedContentConsumers: string[];
 }

@@ -167,6 +167,26 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
     );
   }
 
+  // Apply filtering based on selectedContentConsumers
+  if (options.selectedContentConsumers && options.selectedContentConsumers.length > 0) {
+    const selectedConsumers = new Set(options.selectedContentConsumers);
+
+    // Filter extension points to only include those defined by selected consumers
+    filteredExtensionPoints = filteredExtensionPoints.filter((ep) => selectedConsumers.has(ep.definingPlugin));
+
+    // Filter dependencies to only include those targeting remaining extension points
+    const remainingExtensionPointIds = new Set(filteredExtensionPoints.map((ep) => ep.id));
+    filteredDependencies = filteredDependencies.filter((dep) => remainingExtensionPointIds.has(dep.target));
+
+    // Get set of content providers that still have valid dependencies
+    const activeContentProviders = new Set(filteredDependencies.map((dep) => dep.source));
+
+    // Filter nodes to only include selected consumers and active content providers
+    filteredNodes = filteredNodes.filter(
+      (node) => selectedConsumers.has(node.id) || activeContentProviders.has(node.id)
+    );
+  }
+
   const result = {
     nodes: filteredNodes,
     dependencies: filteredDependencies,
@@ -212,6 +232,43 @@ export const getAvailableContentProviders = (data: PanelData | DataFrame[]): str
   });
 
   return Array.from(contentProviders).sort();
+};
+
+// Extract all available content consumers from the data for the multiselect options
+export const getAvailableContentConsumers = (data: PanelData | DataFrame[]): string[] => {
+  const series = Array.isArray(data) ? data : data.series;
+
+  if (!series.length) {
+    return [];
+  }
+
+  const contentConsumers = new Set<string>();
+
+  series.forEach((series) => {
+    if (!series.fields || series.fields.length === 0) {
+      return;
+    }
+
+    const toAppField = series.fields.find((field) => field.name === 'to_app');
+    const relationField = series.fields.find((field) => field.name === 'relation');
+
+    if (!toAppField || !relationField) {
+      return;
+    }
+
+    for (let i = 0; i < series.length; i++) {
+      const toApp = toAppField.values[i];
+      const relation = relationField.values[i];
+
+      if (toApp && relation === 'extends') {
+        // Convert "grafana" to "grafana-core" for consistency
+        const definingPlugin = toApp === 'grafana' ? 'grafana-core' : toApp;
+        contentConsumers.add(definingPlugin);
+      }
+    }
+  });
+
+  return Array.from(contentConsumers).sort();
 };
 
 // Create sample data for demonstration that matches the new data format
@@ -300,4 +357,5 @@ export const getDefaultOptions = (): PanelOptions => ({
 
   // Filtering options
   selectedContentProviders: [], // Empty array means all providers are selected
+  selectedContentConsumers: [], // Empty array means all consumers are selected
 });
