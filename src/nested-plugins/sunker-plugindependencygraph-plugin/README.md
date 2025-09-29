@@ -14,24 +14,28 @@ A Grafana panel plugin that visualizes dependencies between Grafana plugins, spe
 
 The panel expects table data with the following structure:
 
-| Field Name | Type   | Description                                       |
-| ---------- | ------ | ------------------------------------------------- |
-| `from_app` | string | Plugin ID that extends another (consumer)         |
-| `to_app`   | string | Plugin ID being extended (provider)               |
-| `relation` | string | Type of relationship ("extends", "depends_on")    |
-| `evidence` | string | Optional evidence/description of the relationship |
+| Field Name       | Type   | Description                               |
+| ---------------- | ------ | ----------------------------------------- |
+| `from_app`       | string | Content provider plugin ID                |
+| `to_app`         | string | Plugin that defines the extension point   |
+| `relation`       | string | Type of relationship ("extends")          |
+| `extension_id`   | string | Specific extension point ID               |
+| `extension_type` | string | Type of extension ("link" or "component") |
 
 ### Example Data
 
 ```json
 {
-  "from_app": ["grafana-extensionexample1-app", "grafana-extensionexample2-app"],
-  "relation": ["extends", "extends"],
-  "to_app": ["grafana-extensionstest-app", "grafana-extensionstest-app"],
-  "evidence": [
-    "plugins/grafana-extensionstest-app/actions",
-    "plugins/grafana-extensionstest-app/configure-extension-component/v1"
-  ]
+  "from_app": ["grafana-asserts-app", "grafana-asserts-app", "grafana-asserts-app", "grafana-asserts-app"],
+  "relation": ["extends", "extends", "extends", "extends"],
+  "to_app": ["grafana", "grafana", "grafana-assistant-app", "grafana-assistant-app"],
+  "extension_id": [
+    "grafana/alerting/home",
+    "link nav-landing-page/nav-id-observability/v1",
+    "navigateToDrilldown/v1",
+    "alertingrule/queryeditor"
+  ],
+  "extension_type": ["link", "link", "link", "component"]
 }
 ```
 
@@ -79,14 +83,63 @@ Configure which columns contain the required data:
    - Hover over connections to see relationship details
    - View plugin names and types as labels
 
-## Extension Relationships
+## Extension Points Visualization
 
-The panel focuses on "extends" relationships where:
+The panel visualizes the relationship between content provider apps and the extension points they provide content to:
 
-- **Provider**: The plugin being extended (appears as source with arrow pointing out)
-- **Consumer**: The plugin doing the extending (appears as target receiving the arrow)
+### Visual Layout
 
-For example: If "Extension Example App" extends "Extensions Test App", the graph shows an arrow from "Extensions Test App" → "Extension Example App", indicating that the test app provides functionality that the example app consumes.
+**Left Side - Content Providers:**
+
+- **App Boxes**: Rectangular containers showing the full plugin ID (e.g., `grafana-extensionexample1-app`)
+- **Role Label**: "Content Provider" indicating these apps provide content to extension points
+- **Blue Color**: Consistent color coding for content provider apps
+
+**Right Side - Extension Points:**
+
+- **Grouped by Defining Plugin**: Extension points are grouped in larger containers by the plugin that defines them
+- **Plugin Headers**: Show the display name of the plugin that defines the extension points (e.g., "Extensions Test App")
+- **Extension Point Boxes**: Individual green boxes showing the extension point names (e.g., "actions", "use-plugin-links/v1")
+- **Hierarchical Organization**: Clear visual separation between different defining plugins
+
+### Connection Flow
+
+- **Curved Arrows**: Flow from content provider apps (left) to specific extension points (right)
+- **Connection Labels**: "provides content" labels on hover showing the relationship
+- **Multiple Connections**: One app can provide content to multiple extension points
+
+### Data Processing
+
+The panel automatically:
+
+1. **Processes Extension Records**: Each row represents one extension relationship with specific extension point ID and type
+2. **Identifies Defining Plugins**: Maps "grafana" to "Grafana Core" and other plugin names to their display names
+3. **Groups Extension Points**: Organizes extension points by their defining plugin for cleaner visualization
+4. **Type-based Styling**: Colors extension points based on type (green for links, orange for components)
+5. **Filters Content Providers**: Shows only apps that actually provide content to extension points
+
+### Example
+
+For the data:
+
+```
+from_app: "grafana-asserts-app"
+relation: "extends"
+to_app: "grafana"
+extension_id: "grafana/alerting/home"
+extension_type: "link"
+```
+
+The visualization shows:
+
+- **Left**: `grafana-asserts-app` box labeled "Content Provider"
+- **Right**: Extension point "grafana/alerting/home" with "LINK" badge grouped under "Grafana Core"
+- **Arrow**: Curved arrow from the provider app to the extension point
+
+### Extension Types
+
+- **Link Extensions** (green boxes with "LINK" badge): Navigation links, menu items, toolbar actions
+- **Component Extensions** (orange boxes with "COMPONENT" badge): React components, query editors, custom UI elements
 
 ## Development
 

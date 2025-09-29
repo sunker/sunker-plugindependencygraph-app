@@ -1,4 +1,4 @@
-import { GraphData, PanelOptions, PluginDependency, PluginNode } from '../types';
+import { ExtensionPoint, GraphData, PanelOptions, PluginDependency, PluginNode } from '../types';
 
 import { PanelData } from '@grafana/data';
 
@@ -9,6 +9,35 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
 
   const nodes: Map<string, PluginNode> = new Map();
   const dependencies: PluginDependency[] = [];
+  const extensionPoints: Map<string, ExtensionPoint> = new Map();
+
+  // No longer need helper functions since we get extension data directly from fields
+
+  // Extract plugin display names (remove "grafana-" prefix and "-app" suffix for cleaner display)
+  const getDisplayName = (pluginId: string) => {
+    if (pluginId === 'grafana-core') {
+      return 'Grafana Core';
+    }
+    return pluginId
+      .replace(/^grafana-/, '')
+      .replace(/-app$/, '')
+      .replace(/-/g, ' ')
+      .replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
+  // Determine plugin type based on name patterns
+  const getPluginType = (pluginId: string): PluginNode['type'] => {
+    if (pluginId === 'grafana-core') {
+      return 'app';
+    }
+    if (pluginId.includes('-panel')) {
+      return 'panel';
+    }
+    if (pluginId.includes('-datasource')) {
+      return 'datasource';
+    }
+    return 'app'; // Default to app
+  };
 
   // Process each series (assuming table format)
   data.series.forEach((series) => {
@@ -16,13 +45,14 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
       return;
     }
 
-    // Look for the expected field names from the provided data structure
+    // Look for the expected field names from the new data structure
     const fromAppField = series.fields.find((field) => field.name === 'from_app');
     const relationField = series.fields.find((field) => field.name === 'relation');
     const toAppField = series.fields.find((field) => field.name === 'to_app');
-    const evidenceField = series.fields.find((field) => field.name === 'evidence');
+    const extensionIdField = series.fields.find((field) => field.name === 'extension_id');
+    const extensionTypeField = series.fields.find((field) => field.name === 'extension_type');
 
-    if (!fromAppField || !toAppField || !relationField) {
+    if (!fromAppField || !toAppField || !relationField || !extensionIdField) {
       return; // Can't create graph without required fields
     }
 
@@ -31,9 +61,10 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
       const fromApp = fromAppField.values[i];
       const toApp = toAppField.values[i];
       const relation = relationField.values[i];
-      const evidence = evidenceField?.values[i];
+      const extensionId = extensionIdField.values[i];
+      const extensionType = extensionTypeField?.values[i] || 'link';
 
-      if (!fromApp || !toApp || !relation) {
+      if (!fromApp || !toApp || !relation || !extensionId) {
         continue;
       }
 
@@ -43,59 +74,54 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
       }
 
       // In an "extends" relationship:
-      // - fromApp is the CONSUMER (the one extending)
-      // - toApp is the PROVIDER (the one being extended)
-      const consumerId = fromApp;
-      const providerId = toApp;
+      // - fromApp provides content to extension points
+      // - toApp defines the extension point (could be "grafana" for core)
+      // - extensionId is the specific extension point
+      const contentProvider = fromApp;
+      const definingPlugin = toApp === 'grafana' ? 'grafana-core' : toApp;
+      const fullExtensionId = extensionId;
 
-      // Extract plugin display names (remove "grafana-" prefix and "-app" suffix for cleaner display)
-      const getDisplayName = (pluginId: string) => {
-        return pluginId
-          .replace(/^grafana-/, '')
-          .replace(/-app$/, '')
-          .replace(/-/g, ' ')
-          .replace(/\b\w/g, (l) => l.toUpperCase());
-      };
-
-      const consumerName = getDisplayName(consumerId);
-      const providerName = getDisplayName(providerId);
-
-      // Determine plugin type based on name patterns (this could be made configurable)
-      const getPluginType = (pluginId: string): PluginNode['type'] => {
-        if (pluginId.includes('-panel')) {
-          return 'panel';
-        }
-        if (pluginId.includes('-datasource')) {
-          return 'datasource';
-        }
-        return 'app'; // Default to app
-      };
-
-      // Add consumer node if not exists
-      if (!nodes.has(consumerId)) {
-        nodes.set(consumerId, {
-          id: consumerId,
-          name: consumerName,
-          type: getPluginType(consumerId),
-          description: evidence || undefined,
+      // Add content provider node
+      if (!nodes.has(contentProvider)) {
+        nodes.set(contentProvider, {
+          id: contentProvider,
+          name: getDisplayName(contentProvider),
+          type: getPluginType(contentProvider),
+          description: `Provides content to extension points`,
         });
       }
 
-      // Add provider node if not exists
-      if (!nodes.has(providerId)) {
-        nodes.set(providerId, {
-          id: providerId,
-          name: providerName,
-          type: getPluginType(providerId),
+      // Add defining plugin node if it doesn't exist
+      if (!nodes.has(definingPlugin)) {
+        nodes.set(definingPlugin, {
+          id: definingPlugin,
+          name: getDisplayName(definingPlugin),
+          type: getPluginType(definingPlugin),
+          description: `Defines extension points`,
         });
       }
 
-      // Add dependency (from provider to consumer to show extension flow)
+      // Create or update extension point
+      if (!extensionPoints.has(fullExtensionId)) {
+        extensionPoints.set(fullExtensionId, {
+          id: fullExtensionId,
+          definingPlugin,
+          providers: [],
+          extensionType: extensionType as 'link' | 'component',
+        });
+      }
+
+      const extensionPoint = extensionPoints.get(fullExtensionId)!;
+      if (!extensionPoint.providers.includes(contentProvider)) {
+        extensionPoint.providers.push(contentProvider);
+      }
+
+      // Add dependency from content provider to extension point
       dependencies.push({
-        source: providerId, // Provider is the source
-        target: consumerId, // Consumer is the target
+        source: contentProvider,
+        target: fullExtensionId, // Use extension point ID as target
         type: 'extends',
-        description: evidence || `${consumerName} extends ${providerName}`,
+        description: `${getDisplayName(contentProvider)} provides ${extensionType} to ${fullExtensionId}`,
       });
     }
   });
@@ -103,60 +129,88 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
   return {
     nodes: Array.from(nodes.values()),
     dependencies,
+    extensionPoints: Array.from(extensionPoints.values()),
   };
 };
 
-// Create sample data for demonstration that matches the actual plugin extension use case
+// Create sample data for demonstration that matches the new data format
 export const createSampleData = (): GraphData => {
   const nodes: PluginNode[] = [
     {
-      id: 'grafana-extensionstest-app',
-      name: 'Extensions Test App',
+      id: 'grafana-core',
+      name: 'Grafana Core',
       type: 'app',
-      description: 'Core extension provider app',
+      description: 'Defines core extension points',
     },
     {
-      id: 'grafana-extensionexample1-app',
-      name: 'Extension Example 1 App',
+      id: 'grafana-assistant-app',
+      name: 'Assistant App',
       type: 'app',
-      description: 'First extension consumer app',
+      description: 'Defines extension points',
     },
     {
-      id: 'grafana-extensionexample2-app',
-      name: 'Extension Example 2 App',
+      id: 'grafana-asserts-app',
+      name: 'Asserts App',
       type: 'app',
-      description: 'Second extension consumer app',
+      description: 'Provides content to extension points',
+    },
+  ];
+
+  const extensionPoints: ExtensionPoint[] = [
+    {
+      id: 'grafana/alerting/home',
+      definingPlugin: 'grafana-core',
+      providers: ['grafana-asserts-app'],
+      extensionType: 'link',
     },
     {
-      id: 'grafana-lokiexplore-app',
-      name: 'Loki Explore App',
-      type: 'app',
-      description: 'Loki exploration app',
+      id: 'link nav-landing-page/nav-id-observability/v1',
+      definingPlugin: 'grafana-core',
+      providers: ['grafana-asserts-app'],
+      extensionType: 'link',
     },
     {
-      id: 'grafana-adaptivelogs-app',
-      name: 'Adaptive Logs App',
-      type: 'app',
-      description: 'Adaptive logs processing app',
+      id: 'navigateToDrilldown/v1',
+      definingPlugin: 'grafana-assistant-app',
+      providers: ['grafana-asserts-app'],
+      extensionType: 'link',
+    },
+    {
+      id: 'alertingrule/queryeditor',
+      definingPlugin: 'grafana-assistant-app',
+      providers: ['grafana-asserts-app'],
+      extensionType: 'component',
     },
   ];
 
   const dependencies: PluginDependency[] = [
     {
-      source: 'grafana-extensionstest-app',
-      target: 'grafana-extensionexample1-app',
+      source: 'grafana-asserts-app',
+      target: 'grafana/alerting/home',
       type: 'extends',
-      description: 'Extension Example 1 extends Extensions Test App functionality',
+      description: 'Asserts App provides link to grafana/alerting/home extension point',
     },
     {
-      source: 'grafana-extensionstest-app',
-      target: 'grafana-extensionexample2-app',
+      source: 'grafana-asserts-app',
+      target: 'link nav-landing-page/nav-id-observability/v1',
       type: 'extends',
-      description: 'Extension Example 2 extends Extensions Test App functionality',
+      description: 'Asserts App provides link to nav-landing-page extension point',
+    },
+    {
+      source: 'grafana-asserts-app',
+      target: 'navigateToDrilldown/v1',
+      type: 'extends',
+      description: 'Asserts App provides link to navigateToDrilldown extension point',
+    },
+    {
+      source: 'grafana-asserts-app',
+      target: 'alertingrule/queryeditor',
+      type: 'extends',
+      description: 'Asserts App provides component to alertingrule/queryeditor extension point',
     },
   ];
 
-  return { nodes, dependencies };
+  return { nodes, dependencies, extensionPoints };
 };
 
 export const getDefaultOptions = (): PanelOptions => ({
@@ -170,7 +224,7 @@ export const getDefaultOptions = (): PanelOptions => ({
     panel: '#ff7f0e',
     datasource: '#2ca02c',
   },
-  layoutType: 'force',
+  layoutType: 'hierarchical',
   enableDrag: true,
   enableZoom: true,
   sourceColumn: 'from_app',

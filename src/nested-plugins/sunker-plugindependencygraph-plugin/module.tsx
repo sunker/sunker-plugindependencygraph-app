@@ -51,11 +51,11 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
         path: 'layoutType',
         name: 'Layout Type',
         description: 'How to arrange the nodes',
-        defaultValue: 'force',
+        defaultValue: 'hierarchical',
         settings: {
           options: [
-            { value: 'force', label: 'Force Directed' },
-            { value: 'hierarchical', label: 'Hierarchical' },
+            { value: 'hierarchical', label: 'Provider-Consumer Flow (Recommended)' },
+            { value: 'force', label: 'Grid Layout' },
             { value: 'circular', label: 'Circular' },
           ],
         },
@@ -97,32 +97,32 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
       .addTextInput({
         path: 'sourceColumn',
         name: 'Source Column',
-        description: 'Column containing the source plugin ID (extends from)',
+        description: 'Column containing the content provider plugin ID',
         defaultValue: 'from_app',
       })
       .addTextInput({
         path: 'targetColumn',
         name: 'Target Column',
-        description: 'Column containing the target plugin ID (extends to)',
+        description: 'Column containing the defining plugin ID',
         defaultValue: 'to_app',
       })
       .addTextInput({
         path: 'typeColumn',
         name: 'Relation Type Column',
-        description: 'Column containing the relationship type (extends, depends_on)',
+        description: 'Column containing the relationship type (extends)',
         defaultValue: 'relation',
       })
       .addTextInput({
         path: 'nameColumn',
-        name: 'Plugin Name Column',
-        description: 'Column containing the plugin display name (fallback to from_app)',
-        defaultValue: 'from_app',
+        name: 'Extension ID Column',
+        description: 'Column containing the extension point ID',
+        defaultValue: 'extension_id',
       })
       .addTextInput({
         path: 'pluginTypeColumn',
-        name: 'Plugin Type Column',
-        description: 'Column containing the plugin type (app, panel, datasource)',
-        defaultValue: 'plugin_type',
+        name: 'Extension Type Column',
+        description: 'Column containing the extension type (link, component)',
+        defaultValue: 'extension_type',
       })
   );
 });
