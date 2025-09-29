@@ -22,4 +22,4 @@ services:
       GF_LOG_FILTERS: plugin.sunker-plugindependencygraph-app:debug
       GF_LOG_LEVEL: debug
       GF_DATAPROXY_LOGGING: 1
-      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: sunker-plugindependencygraph-app
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: sunker-plugindependencygraph-app,sunker-plugindependencygraph-plugin

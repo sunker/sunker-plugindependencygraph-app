@@ -45,6 +45,11 @@
       "path": "/a/%PLUGIN_ID%/hello-world",
       "addToNav": true,
       "defaultNav": false
+    },
+    {
+      "type": "panel",
+      "name": "Plugin Dependency Graph",
+      "id": "sunker-plugindependencygraph-plugin"
     }
   ],
   "dependencies": {

@@ -1,4 +1,4 @@
-import { PanelOptions } from './types';
+import { PanelOptions } from '../types';
 import { PanelProps } from '@grafana/data';
 import React from 'react';
 

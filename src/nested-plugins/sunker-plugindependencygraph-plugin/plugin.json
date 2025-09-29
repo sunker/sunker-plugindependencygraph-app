@@ -19,5 +19,6 @@
   "dependencies": {
     "grafanaDependency": ">=11.2.0",
     "plugins": []
-  }
+  },
+  "executable": "gpx_sunker-plugindependencygraph-plugin"
 }
