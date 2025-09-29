@@ -27,6 +27,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   const [nodes, setNodes] = useState<NodeWithPosition[]>([]);
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
+  const [selectedExtensionPoint, setSelectedExtensionPoint] = useState<string | null>(null);
 
   const styles = getStyles(theme, options);
 
@@ -125,6 +126,22 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           points="0 0, 6 2.5, 0 5"
           fill={theme.colors.primary.main}
           stroke={theme.colors.primary.main}
+          strokeWidth="1"
+        />
+      </marker>
+      <marker
+        id="arrowhead-highlighted"
+        markerWidth="6"
+        markerHeight="5"
+        refX="5"
+        refY="2.5"
+        orient="auto"
+        markerUnits="strokeWidth"
+      >
+        <polygon
+          points="0 0, 6 2.5, 0 5"
+          fill={theme.colors.success.main}
+          stroke={theme.colors.success.main}
           strokeWidth="1"
         />
       </marker>
@@ -260,16 +277,20 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
         const pathData = `M ${startX} ${startY} C ${controlX1} ${startY}, ${controlX2} ${endY}, ${endX} ${endY}`;
 
+        // Check if this arrow points to the selected extension point
+        const isHighlighted = selectedExtensionPoint ? extensionPointIds.includes(selectedExtensionPoint) : false;
+
         arrows.push(
           <g key={`${sourceId}-${definingPlugin}-${arrowIndex}`}>
             {/* Connection path */}
             <path
               d={pathData}
               fill="none"
-              stroke={theme.colors.primary.main}
-              strokeWidth={3}
-              markerEnd="url(#arrowhead)"
-              className={styles.link}
+              stroke={isHighlighted ? theme.colors.success.main : theme.colors.primary.main}
+              strokeWidth={isHighlighted ? 4 : 3}
+              markerEnd={isHighlighted ? 'url(#arrowhead-highlighted)' : 'url(#arrowhead)'}
+              className={isHighlighted ? styles.linkHighlighted : styles.link}
+              opacity={selectedExtensionPoint && !isHighlighted ? 0.3 : 1}
             />
           </g>
         );
@@ -457,10 +478,14 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
                   width={extensionBoxWidth}
                   height={extensionBoxHeight}
                   fill={isComponent ? theme.colors.warning.main : theme.colors.success.main}
-                  stroke={theme.colors.border.strong}
-                  strokeWidth={2}
+                  stroke={selectedExtensionPoint === epId ? theme.colors.primary.border : theme.colors.border.strong}
+                  strokeWidth={selectedExtensionPoint === epId ? 3 : 2}
                   rx={6}
                   className={styles.extensionPointBox}
+                  onClick={() => {
+                    setSelectedExtensionPoint(selectedExtensionPoint === epId ? null : epId);
+                  }}
+                  style={{ cursor: 'pointer' }}
                 />
 
                 {/* Extension point ID - first line */}
@@ -608,6 +633,14 @@ const getStyles = (theme: GrafanaTheme2, options: PanelOptions) => {
       &:hover {
         stroke-width: 4;
         filter: brightness(1.2);
+      }
+    `,
+    linkHighlighted: css`
+      transition: all 0.2s ease;
+
+      &:hover {
+        stroke-width: 5;
+        filter: brightness(1.1);
       }
     `,
     linkLabel: css`
