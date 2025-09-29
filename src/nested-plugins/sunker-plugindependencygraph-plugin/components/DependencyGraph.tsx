@@ -64,17 +64,14 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     });
 
     return result;
-  }, [data.nodes, data.dependencies, data.extensionPoints, height]);
+  }, [data.nodes, data.dependencies, data.extensionPoints]);
 
   useEffect(() => {
     setNodes(calculateLayout);
   }, [calculateLayout]);
 
   const handleMouseDown = (nodeId: string, event: React.MouseEvent) => {
-    if (!options.enableDrag) {
-      return;
-    }
-
+    // Drag is always enabled
     event.preventDefault();
     setIsDragging(nodeId);
 
@@ -88,7 +85,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   };
 
   const handleMouseMove = (event: React.MouseEvent) => {
-    if (!isDragging || !options.enableDrag) {
+    if (!isDragging) {
       return;
     }
 
@@ -153,7 +150,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     const margin = 80;
     const extensionPointSpacing = 65; // Decreased spacing between extension point boxes
     const groupSpacing = 40; // Much smaller distance between plugin groups
-    const rightSideX = width - margin - 280; // Position on right side, more space for longer text
+    const rightSideX = width - margin - 420; // Position on right side, adjusted for wider boxes
 
     let currentGroupY = margin - 5; // Very close to content consumer header
 
@@ -250,7 +247,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         const groupCenterX = firstExtensionPos.x - 30 + (320 + 20) / 2; // Center of the group box (updated for new width)
         const groupCenterY = firstExtensionPos.groupY + firstExtensionPos.groupHeight / 2;
 
-        const nodeWidth = 180;
+        const nodeWidth = 220;
         const startX = sourceNode.x + nodeWidth / 2;
         const startY = sourceNode.y;
         const endX = groupCenterX - 180; // Point to left edge of group (adjusted for new width)
@@ -297,7 +294,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     return nodes
       .filter((node) => contentProviders.has(node.id))
       .map((node) => {
-        const nodeWidth = 180;
+        const nodeWidth = 220;
         const nodeHeight = 60;
 
         return (
@@ -305,7 +302,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
             key={node.id}
             transform={`translate(${node.x - nodeWidth / 2}, ${node.y - nodeHeight / 2})`}
             onMouseDown={(e) => handleMouseDown(node.id, e)}
-            style={{ cursor: options.enableDrag ? 'grab' : 'default' }}
+            style={{ cursor: 'grab' }}
             className={styles.node}
           >
             {/* Main app box */}
@@ -363,7 +360,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
         {/* Content Consumer Header */}
         <text
-          x={width - margin - 150}
+          x={width - margin - 210}
           y={30}
           textAnchor="middle"
           className={styles.sectionHeader}
@@ -374,7 +371,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
         {/* Dashed line under Content Consumer header */}
         <line
-          x1={width - margin - 300}
+          x1={width - margin - 420}
           y1={40}
           x2={width - margin}
           y2={40}
@@ -419,10 +416,10 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         return null;
       }
 
-      const groupWidth = 320; // Increased width for longer extension IDs
+      const groupWidth = 420; // Further increased width for longer extension IDs
       const groupHeight = firstEpPos.groupHeight;
-      const extensionBoxWidth = 280; // Increased width for full extension IDs
-      const extensionBoxHeight = 60; // Increased height for two lines of text
+      const extensionBoxWidth = 380; // Further increased width for full extension IDs
+      const extensionBoxHeight = options.showDependencyTypes ? 60 : 40; // Adjust height based on whether we show type info
 
       return (
         <g key={definingPlugin}>
@@ -469,7 +466,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
                 {/* Extension point ID - first line */}
                 <text
                   x={epPos.x + extensionBoxWidth / 2}
-                  y={epPos.y - 5}
+                  y={options.showDependencyTypes ? epPos.y - 5 : epPos.y + 5}
                   textAnchor="middle"
                   className={styles.extensionPointLabel}
                   fill={theme.colors.getContrastText(
@@ -480,17 +477,19 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
                 </text>
 
                 {/* Extension type - second line in parentheses */}
-                <text
-                  x={epPos.x + extensionBoxWidth / 2}
-                  y={epPos.y + 15}
-                  textAnchor="middle"
-                  className={styles.extensionTypeBadge}
-                  fill={theme.colors.getContrastText(
-                    isComponent ? theme.colors.warning.main : theme.colors.success.main
-                  )}
-                >
-                  ({extensionType} extension)
-                </text>
+                {options.showDependencyTypes && (
+                  <text
+                    x={epPos.x + extensionBoxWidth / 2}
+                    y={epPos.y + 15}
+                    textAnchor="middle"
+                    className={styles.extensionTypeBadge}
+                    fill={theme.colors.getContrastText(
+                      isComponent ? theme.colors.warning.main : theme.colors.success.main
+                    )}
+                  >
+                    ({extensionType} extension)
+                  </text>
+                )}
               </g>
             );
           })}
@@ -551,10 +550,10 @@ const getStyles = (theme: GrafanaTheme2, options: PanelOptions) => {
     svg: css`
       width: 100%;
       min-height: 100%;
-      cursor: ${options.enableDrag ? 'grab' : 'default'};
+      cursor: grab;
 
       &:active {
-        cursor: ${options.enableDrag ? 'grabbing' : 'default'};
+        cursor: grabbing;
       }
     `,
     node: css`

@@ -1,6 +1,5 @@
+import { DataFrame, PanelData } from '@grafana/data';
 import { ExtensionPoint, GraphData, PanelOptions, PluginDependency, PluginNode } from '../types';
-
-import { PanelData } from '@grafana/data';
 
 export const processTableDataToGraph = (data: PanelData, options: PanelOptions): GraphData => {
   console.log('processTableDataToGraph - received data:', data);
@@ -139,15 +138,80 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
     }
   });
 
+  // Apply filtering based on selectedContentProviders
+  let filteredDependencies = dependencies;
+  let filteredExtensionPoints = Array.from(extensionPoints.values());
+  let filteredNodes = Array.from(nodes.values());
+
+  if (options.selectedContentProviders && options.selectedContentProviders.length > 0) {
+    // Filter dependencies to only include selected content providers
+    filteredDependencies = dependencies.filter((dep) => options.selectedContentProviders.includes(dep.source));
+
+    // Update extension points to only include those that still have providers after filtering
+    filteredExtensionPoints = filteredExtensionPoints
+      .map((ep) => ({
+        ...ep,
+        providers: ep.providers.filter((provider) => options.selectedContentProviders.includes(provider)),
+      }))
+      .filter((ep) => ep.providers.length > 0); // Remove extension points with no providers
+
+    // Get set of defining plugins that still have extension points
+    const activeDefiningPlugins = new Set(filteredExtensionPoints.map((ep) => ep.definingPlugin));
+
+    // Get set of selected content providers
+    const selectedProviders = new Set(options.selectedContentProviders);
+
+    // Filter nodes to only include selected content providers and active defining plugins
+    filteredNodes = filteredNodes.filter(
+      (node) => selectedProviders.has(node.id) || activeDefiningPlugins.has(node.id)
+    );
+  }
+
   const result = {
-    nodes: Array.from(nodes.values()),
-    dependencies,
-    extensionPoints: Array.from(extensionPoints.values()),
+    nodes: filteredNodes,
+    dependencies: filteredDependencies,
+    extensionPoints: filteredExtensionPoints,
   };
 
   console.log('processTableDataToGraph - final result:', result);
 
   return result;
+};
+
+// Extract all available content providers from the data for the multiselect options
+export const getAvailableContentProviders = (data: PanelData | DataFrame[]): string[] => {
+  const series = Array.isArray(data) ? data : data.series;
+
+  if (!series.length) {
+    return [];
+  }
+
+  const contentProviders = new Set<string>();
+
+  series.forEach((series) => {
+    if (!series.fields || series.fields.length === 0) {
+      return;
+    }
+
+    const fromAppField = series.fields.find((field) => field.name === 'from_app');
+    const relationField = series.fields.find((field) => field.name === 'relation');
+
+    if (!fromAppField || !relationField) {
+      return;
+    }
+
+    // Process each row to find content providers
+    for (let i = 0; i < series.length; i++) {
+      const fromApp = fromAppField.values[i];
+      const relation = relationField.values[i];
+
+      if (fromApp && relation === 'extends') {
+        contentProviders.add(fromApp);
+      }
+    }
+  });
+
+  return Array.from(contentProviders).sort();
 };
 
 // Create sample data for demonstration that matches the new data format
@@ -231,22 +295,9 @@ export const createSampleData = (): GraphData => {
 };
 
 export const getDefaultOptions = (): PanelOptions => ({
-  nodeSize: 30,
-  linkDistance: 100,
-  charge: -200,
-  showLabels: true,
   showDependencyTypes: true,
-  nodeColors: {
-    app: '#1f77b4',
-    panel: '#ff7f0e',
-    datasource: '#2ca02c',
-  },
   layoutType: 'hierarchical',
-  enableDrag: true,
-  enableZoom: true,
-  sourceColumn: 'from_app',
-  targetColumn: 'to_app',
-  typeColumn: 'relation',
-  nameColumn: 'extension_point_id', // Use extension_point_id for extension point names
-  pluginTypeColumn: 'extension_type', // Use extension_type field for extension types
+
+  // Filtering options
+  selectedContentProviders: [], // Empty array means all providers are selected
 });

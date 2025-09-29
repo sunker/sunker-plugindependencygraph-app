@@ -31,28 +31,11 @@ export interface GraphData {
 
 export interface PanelOptions {
   // Visualization options
-  nodeSize: number;
-  linkDistance: number;
-  charge: number;
-  showLabels: boolean;
   showDependencyTypes: boolean;
-
-  // Color options
-  nodeColors: {
-    app: string;
-    panel: string;
-    datasource: string;
-  };
 
   // Layout options
   layoutType: 'hierarchical';
-  enableDrag: boolean;
-  enableZoom: boolean;
 
-  // Data options
-  sourceColumn: string;
-  targetColumn: string;
-  typeColumn: string;
-  nameColumn: string;
-  pluginTypeColumn: string;
+  // Filtering options
+  selectedContentProviders: string[];
 }
