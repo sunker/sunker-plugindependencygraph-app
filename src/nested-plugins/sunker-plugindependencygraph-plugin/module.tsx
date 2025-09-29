@@ -103,7 +103,7 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
         path: 'nameColumn',
         name: 'Extension ID Column',
         description: 'Column containing the extension point ID',
-        defaultValue: 'extension_id',
+        defaultValue: 'extension_point_id',
       })
       .addTextInput({
         path: 'pluginTypeColumn',

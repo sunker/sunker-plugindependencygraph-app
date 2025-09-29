@@ -3,8 +3,11 @@ import { ExtensionPoint, GraphData, PanelOptions, PluginDependency, PluginNode }
 import { PanelData } from '@grafana/data';
 
 export const processTableDataToGraph = (data: PanelData, options: PanelOptions): GraphData => {
+  console.log('processTableDataToGraph - received data:', data);
+
   if (!data.series.length) {
-    return createSampleData();
+    console.log('processTableDataToGraph - no series data, returning empty');
+    return { nodes: [], dependencies: [], extensionPoints: [] };
   }
 
   const nodes: Map<string, PluginNode> = new Map();
@@ -45,14 +48,24 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
       return;
     }
 
-    // Look for the expected field names from the new data structure
+    // Look for the actual field names from the CSV data
     const fromAppField = series.fields.find((field) => field.name === 'from_app');
     const relationField = series.fields.find((field) => field.name === 'relation');
     const toAppField = series.fields.find((field) => field.name === 'to_app');
-    const extensionIdField = series.fields.find((field) => field.name === 'extension_id');
+    const extensionPointIdField = series.fields.find((field) => field.name === 'extension_point_id');
     const extensionTypeField = series.fields.find((field) => field.name === 'extension_type');
 
-    if (!fromAppField || !toAppField || !relationField || !extensionIdField) {
+    console.log('processTableDataToGraph - fields found:', {
+      fromAppField: fromAppField?.name,
+      toAppField: toAppField?.name,
+      relationField: relationField?.name,
+      extensionPointIdField: extensionPointIdField?.name,
+      extensionTypeField: extensionTypeField?.name,
+      allFieldNames: series.fields.map((f) => f.name),
+    });
+
+    if (!fromAppField || !toAppField || !relationField || !extensionPointIdField) {
+      console.log('processTableDataToGraph - missing required fields, skipping series');
       return; // Can't create graph without required fields
     }
 
@@ -61,10 +74,10 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
       const fromApp = fromAppField.values[i];
       const toApp = toAppField.values[i];
       const relation = relationField.values[i];
-      const extensionId = extensionIdField.values[i];
+      const extensionPointId = extensionPointIdField.values[i];
       const extensionType = extensionTypeField?.values[i] || 'link';
 
-      if (!fromApp || !toApp || !relation || !extensionId) {
+      if (!fromApp || !toApp || !relation || !extensionPointId) {
         continue;
       }
 
@@ -76,10 +89,10 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
       // In an "extends" relationship:
       // - fromApp provides content to extension points
       // - toApp defines the extension point (could be "grafana" for core)
-      // - extensionId is the specific extension point
+      // - extensionPointId is the specific extension point
       const contentProvider = fromApp;
       const definingPlugin = toApp === 'grafana' ? 'grafana-core' : toApp;
-      const fullExtensionId = extensionId;
+      const fullExtensionId = extensionPointId;
 
       // Add content provider node
       if (!nodes.has(contentProvider)) {
@@ -126,11 +139,15 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
     }
   });
 
-  return {
+  const result = {
     nodes: Array.from(nodes.values()),
     dependencies,
     extensionPoints: Array.from(extensionPoints.values()),
   };
+
+  console.log('processTableDataToGraph - final result:', result);
+
+  return result;
 };
 
 // Create sample data for demonstration that matches the new data format
@@ -230,6 +247,6 @@ export const getDefaultOptions = (): PanelOptions => ({
   sourceColumn: 'from_app',
   targetColumn: 'to_app',
   typeColumn: 'relation',
-  nameColumn: 'from_app', // Use from_app as fallback for names
-  pluginTypeColumn: 'plugin_type', // This field may not exist in current data
+  nameColumn: 'extension_point_id', // Use extension_point_id for extension point names
+  pluginTypeColumn: 'extension_type', // Use extension_type field for extension types
 });

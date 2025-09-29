@@ -177,6 +177,36 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
   const extensionPointPositions = getExtensionPointPositions();
 
+  // Calculate the total height needed for all content
+  const calculateContentHeight = () => {
+    if (!data.extensionPoints || data.extensionPoints.length === 0) {
+      return height; // Use panel height as minimum
+    }
+
+    // Group extension points by their defining plugin to calculate total height
+    const extensionPointGroups = new Map<string, string[]>();
+    data.extensionPoints.forEach((ep) => {
+      if (!extensionPointGroups.has(ep.definingPlugin)) {
+        extensionPointGroups.set(ep.definingPlugin, []);
+      }
+      extensionPointGroups.get(ep.definingPlugin)!.push(ep.id);
+    });
+
+    const margin = 80;
+    const extensionPointSpacing = 65;
+    const groupSpacing = 40;
+    let totalHeight = margin + 80; // Start with margin + header space
+
+    Array.from(extensionPointGroups.entries()).forEach(([_, extensionPointIds]) => {
+      const groupHeight = extensionPointIds.length * extensionPointSpacing + 70;
+      totalHeight += groupHeight + groupSpacing;
+    });
+
+    return Math.max(totalHeight, height); // Use at least the panel height
+  };
+
+  const contentHeight = calculateContentHeight();
+
   const renderDependencyLinks = () => {
     // Group dependencies by source and defining plugin to consolidate arrows
     const groupedDeps = new Map<string, Map<string, string[]>>();
@@ -493,7 +523,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     <div className={styles.container}>
       <svg
         width={width}
-        height={height}
+        height={contentHeight}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -516,11 +546,11 @@ const getStyles = (theme: GrafanaTheme2, options: PanelOptions) => {
       height: 100%;
       background: ${theme.colors.background.primary};
       border-radius: ${theme.shape.radius.default};
-      overflow: hidden;
+      overflow: auto;
     `,
     svg: css`
       width: 100%;
-      height: 100%;
+      min-height: 100%;
       cursor: ${options.enableDrag ? 'grab' : 'default'};
 
       &:active {
