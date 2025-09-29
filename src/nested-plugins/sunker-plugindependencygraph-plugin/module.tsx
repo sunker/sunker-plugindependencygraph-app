@@ -47,19 +47,6 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
         description: 'Display the type of dependency on links',
         defaultValue: true,
       })
-      .addSelect({
-        path: 'layoutType',
-        name: 'Layout Type',
-        description: 'How to arrange the nodes',
-        defaultValue: 'hierarchical',
-        settings: {
-          options: [
-            { value: 'hierarchical', label: 'Provider-Consumer Flow (Recommended)' },
-            { value: 'force', label: 'Grid Layout' },
-            { value: 'circular', label: 'Circular' },
-          ],
-        },
-      })
       .addBooleanSwitch({
         path: 'enableDrag',
         name: 'Enable Drag',

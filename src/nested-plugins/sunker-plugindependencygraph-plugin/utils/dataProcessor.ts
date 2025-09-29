@@ -164,7 +164,7 @@ export const createSampleData = (): GraphData => {
       extensionType: 'link',
     },
     {
-      id: 'link nav-landing-page/nav-id-observability/v1',
+      id: 'landing-page/nav-id-observability/v1',
       definingPlugin: 'grafana-core',
       providers: ['grafana-asserts-app'],
       extensionType: 'link',

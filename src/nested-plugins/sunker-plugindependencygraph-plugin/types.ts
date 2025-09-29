@@ -45,7 +45,7 @@ export interface PanelOptions {
   };
 
   // Layout options
-  layoutType: 'force' | 'hierarchical' | 'circular';
+  layoutType: 'hierarchical';
   enableDrag: boolean;
   enableZoom: boolean;
 

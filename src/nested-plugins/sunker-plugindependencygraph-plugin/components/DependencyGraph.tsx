@@ -39,8 +39,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     // Identify content providers (apps that provide content to extension points)
     const contentProviders = new Set<string>();
     data.dependencies.forEach((dep) => {
-      // If the target is an extension point ID (starts with "plugins/")
-      if (dep.target.startsWith('plugins/')) {
+      // If the target is an extension point ID (check if it exists in extensionPoints)
+      const extensionPoint = data.extensionPoints?.find((ep) => ep.id === dep.target);
+      if (extensionPoint) {
         contentProviders.add(dep.source);
       }
     });
@@ -49,55 +50,21 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     const margin = 80;
     const nodeSpacing = 100;
 
-    switch (options.layoutType) {
-      case 'circular':
-        // Circular layout for all nodes
-        const totalNodes = data.nodes.length;
-        const centerX = width / 2;
-        const centerY = height / 2;
+    // Extension points layout: Providers on left, Extension Points on right
+    const result: NodeWithPosition[] = [];
 
-        return data.nodes.map((node, index) => {
-          const angle = (2 * Math.PI * index) / totalNodes;
-          const radius = Math.min(width, height) * 0.3;
-          return {
-            ...node,
-            x: centerX + radius * Math.cos(angle),
-            y: centerY + radius * Math.sin(angle),
-          };
-        });
+    // Place content provider apps on the left
+    const providerStartY = margin + 35; // Align with first extension point box (accounting for group header)
+    providerNodes.forEach((node, index) => {
+      result.push({
+        ...node,
+        x: margin + 100, // Give more space for app boxes
+        y: providerStartY + index * nodeSpacing,
+      });
+    });
 
-      case 'hierarchical':
-      default:
-        // Extension points layout: Providers on left, Extension Points on right
-        const result: NodeWithPosition[] = [];
-
-        // Place content provider apps on the left
-        const providerStartY = Math.max(margin + 50, (height - providerNodes.length * nodeSpacing) / 2);
-        providerNodes.forEach((node, index) => {
-          result.push({
-            ...node,
-            x: margin + 100, // Give more space for app boxes
-            y: providerStartY + index * nodeSpacing,
-          });
-        });
-
-        return result;
-
-      case 'force':
-        // Grid layout
-        const nodeCount = data.nodes.length;
-        const cols = Math.ceil(Math.sqrt(nodeCount));
-        const rows = Math.ceil(nodeCount / cols);
-        const cellWidth = width / cols;
-        const cellHeight = height / rows;
-
-        return data.nodes.map((node, index) => ({
-          ...node,
-          x: (index % cols) * cellWidth + cellWidth / 2,
-          y: Math.floor(index / cols) * cellHeight + cellHeight / 2,
-        }));
-    }
-  }, [data.nodes, data.dependencies, data.extensionPoints, width, height, options.layoutType]);
+    return result;
+  }, [data.nodes, data.dependencies, data.extensionPoints, height]);
 
   useEffect(() => {
     setNodes(calculateLayout);
@@ -146,23 +113,19 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     setDragOffset({ x: 0, y: 0 });
   };
 
-  const getNodeColor = (type: PluginNode['type']) => {
-    return options.nodeColors[type] || theme.colors.primary.main;
-  };
-
   const renderArrowMarker = () => (
     <defs>
       <marker
         id="arrowhead"
-        markerWidth="12"
-        markerHeight="10"
-        refX="11"
-        refY="5"
+        markerWidth="6"
+        markerHeight="5"
+        refX="5"
+        refY="2.5"
         orient="auto"
         markerUnits="strokeWidth"
       >
         <polygon
-          points="0 0, 12 5, 0 10"
+          points="0 0, 6 2.5, 0 5"
           fill={theme.colors.primary.main}
           stroke={theme.colors.primary.main}
           strokeWidth="1"
@@ -173,7 +136,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
   // Calculate extension point positions
   const getExtensionPointPositions = () => {
-    if (!data.extensionPoints || options.layoutType !== 'hierarchical') {
+    if (!data.extensionPoints) {
       return new Map();
     }
 
@@ -188,19 +151,19 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
     const positions = new Map<string, { x: number; y: number; groupY: number; groupHeight: number }>();
     const margin = 80;
-    const extensionPointSpacing = 40;
-    const groupSpacing = 80;
-    const rightSideX = width - margin - 200; // Position on right side
+    const extensionPointSpacing = 65; // Decreased spacing between extension point boxes
+    const groupSpacing = 40; // Much smaller distance between plugin groups
+    const rightSideX = width - margin - 280; // Position on right side, more space for longer text
 
-    let currentGroupY = margin + 50; // Account for section headers
+    let currentGroupY = margin - 5; // Very close to content consumer header
 
     Array.from(extensionPointGroups.entries()).forEach(([definingPlugin, extensionPointIds]) => {
-      const groupHeight = extensionPointIds.length * extensionPointSpacing + 40; // Extra space for group header
+      const groupHeight = extensionPointIds.length * extensionPointSpacing + 70; // Extra space for group header
 
       extensionPointIds.forEach((epId, index) => {
         positions.set(epId, {
           x: rightSideX,
-          y: currentGroupY + 30 + index * extensionPointSpacing, // 30px offset for group header
+          y: currentGroupY + 60 + index * extensionPointSpacing, // 60px offset for group header
           groupY: currentGroupY,
           groupHeight: groupHeight,
         });
@@ -215,107 +178,88 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   const extensionPointPositions = getExtensionPointPositions();
 
   const renderDependencyLinks = () => {
-    return data.dependencies.map((dep, index) => {
-      const sourceNode = nodes.find((n) => n.id === dep.source);
+    // Group dependencies by source and defining plugin to consolidate arrows
+    const groupedDeps = new Map<string, Map<string, string[]>>();
 
-      if (!sourceNode) {
-        return null;
+    data.dependencies.forEach((dep) => {
+      const extensionPoint = data.extensionPoints?.find((ep) => ep.id === dep.target);
+      if (!extensionPoint) {
+        return;
       }
 
-      // Check if target is an extension point
-      const extensionPointPos = extensionPointPositions.get(dep.target);
-      if (!extensionPointPos) {
-        return null;
+      const sourceId = dep.source;
+      const definingPlugin = extensionPoint.definingPlugin;
+
+      if (!groupedDeps.has(sourceId)) {
+        groupedDeps.set(sourceId, new Map());
       }
-
-      // Calculate connection path from provider to extension point
-      const nodeWidth = 180;
-
-      const startX = sourceNode.x + nodeWidth / 2;
-      const startY = sourceNode.y;
-      const endX = extensionPointPos.x - 10;
-      const endY = extensionPointPos.y;
-
-      // Calculate control points for a curved path
-      const midX = (startX + endX) / 2;
-      const controlX1 = startX + (midX - startX) * 0.6;
-      const controlX2 = endX - (endX - midX) * 0.6;
-
-      const pathData = `M ${startX} ${startY} C ${controlX1} ${startY}, ${controlX2} ${endY}, ${endX} ${endY}`;
-
-      return (
-        <g key={`${dep.source}-${dep.target}-${index}`}>
-          {/* Connection path */}
-          <path
-            d={pathData}
-            fill="none"
-            stroke={theme.colors.primary.main}
-            strokeWidth={2}
-            markerEnd="url(#arrowhead)"
-            className={styles.link}
-          />
-
-          {/* Connection label */}
-          {options.showDependencyTypes && (
-            <text
-              x={midX}
-              y={(startY + endY) / 2 - 8}
-              textAnchor="middle"
-              className={styles.linkLabel}
-              fill={theme.colors.text.secondary}
-            >
-              provides content
-            </text>
-          )}
-        </g>
-      );
+      if (!groupedDeps.get(sourceId)!.has(definingPlugin)) {
+        groupedDeps.get(sourceId)!.set(definingPlugin, []);
+      }
+      groupedDeps.get(sourceId)!.get(definingPlugin)!.push(dep.target);
     });
+
+    const arrows: React.JSX.Element[] = [];
+    let arrowIndex = 0;
+
+    groupedDeps.forEach((definingPluginMap, sourceId) => {
+      const sourceNode = nodes.find((n) => n.id === sourceId);
+      if (!sourceNode) {
+        return;
+      }
+
+      definingPluginMap.forEach((extensionPointIds, definingPlugin) => {
+        // Find the center position of this defining plugin group
+        const firstExtensionId = extensionPointIds[0];
+        const firstExtensionPos = extensionPointPositions.get(firstExtensionId);
+        if (!firstExtensionPos) {
+          return;
+        }
+
+        // Calculate group center
+        const groupCenterX = firstExtensionPos.x - 30 + (320 + 20) / 2; // Center of the group box (updated for new width)
+        const groupCenterY = firstExtensionPos.groupY + firstExtensionPos.groupHeight / 2;
+
+        const nodeWidth = 180;
+        const startX = sourceNode.x + nodeWidth / 2;
+        const startY = sourceNode.y;
+        const endX = groupCenterX - 180; // Point to left edge of group (adjusted for new width)
+        const endY = groupCenterY;
+
+        // Calculate control points for a curved path
+        const midX = (startX + endX) / 2;
+        const controlX1 = startX + (midX - startX) * 0.6;
+        const controlX2 = endX - (endX - midX) * 0.6;
+
+        const pathData = `M ${startX} ${startY} C ${controlX1} ${startY}, ${controlX2} ${endY}, ${endX} ${endY}`;
+
+        arrows.push(
+          <g key={`${sourceId}-${definingPlugin}-${arrowIndex}`}>
+            {/* Connection path */}
+            <path
+              d={pathData}
+              fill="none"
+              stroke={theme.colors.primary.main}
+              strokeWidth={3}
+              markerEnd="url(#arrowhead)"
+              className={styles.link}
+            />
+          </g>
+        );
+
+        arrowIndex++;
+      });
+    });
+
+    return arrows;
   };
 
   const renderNodes = () => {
-    if (options.layoutType !== 'hierarchical') {
-      // For non-hierarchical layouts, render nodes normally
-      return nodes.map((node, index) => {
-        const nodeWidth = 120;
-        const nodeHeight = 60;
-
-        return (
-          <g
-            key={node.id}
-            transform={`translate(${node.x - nodeWidth / 2}, ${node.y - nodeHeight / 2})`}
-            onMouseDown={(e) => handleMouseDown(node.id, e)}
-            style={{ cursor: options.enableDrag ? 'grab' : 'default' }}
-            className={styles.node}
-          >
-            <rect
-              width={nodeWidth}
-              height={nodeHeight}
-              fill={getNodeColor(node.type)}
-              stroke={theme.colors.border.strong}
-              strokeWidth={2}
-              rx={8}
-              className={styles.nodeBox}
-            />
-            {options.showLabels && (
-              <text
-                x={nodeWidth / 2}
-                y={nodeHeight / 2 + 4}
-                textAnchor="middle"
-                className={styles.nodeLabel}
-                fill={theme.colors.getContrastText(getNodeColor(node.type))}
-              >
-                {node.name}
-              </text>
-            )}
-          </g>
-        );
-      });
-    }
-
-    // For hierarchical layout: render content provider apps on the left
+    // Render content provider apps on the left
     const contentProviders = new Set<string>();
     data.dependencies.forEach((dep) => {
-      if (dep.target.startsWith('plugins/')) {
+      if (data.extensionPoints?.some((ep) => ep.id === dep.target)) {
+        // Check if target is an actual extension point
         contentProviders.add(dep.source);
       }
     });
@@ -348,23 +292,12 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
             {/* App ID label */}
             <text
               x={nodeWidth / 2}
-              y={nodeHeight / 2 - 8}
+              y={nodeHeight / 2}
               textAnchor="middle"
               className={styles.appIdLabel}
               fill={theme.colors.getContrastText(theme.colors.primary.main)}
             >
               {node.id}
-            </text>
-
-            {/* Role label */}
-            <text
-              x={nodeWidth / 2}
-              y={nodeHeight / 2 + 8}
-              textAnchor="middle"
-              className={styles.roleLabel}
-              fill={theme.colors.getContrastText(theme.colors.primary.main)}
-            >
-              Content Provider
             </text>
           </g>
         );
@@ -372,10 +305,6 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   };
 
   const renderSectionHeaders = () => {
-    if (options.layoutType !== 'hierarchical') {
-      return null;
-    }
-
     const margin = 80;
 
     return (
@@ -391,9 +320,20 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           Content Provider
         </text>
 
+        {/* Dashed line under Content Provider header */}
+        <line
+          x1={margin}
+          y1={40}
+          x2={margin + 200}
+          y2={40}
+          stroke={theme.colors.border.medium}
+          strokeWidth={1}
+          strokeDasharray="5,5"
+        />
+
         {/* Content Consumer Header */}
         <text
-          x={width - margin - 100}
+          x={width - margin - 150}
           y={30}
           textAnchor="middle"
           className={styles.sectionHeader}
@@ -401,12 +341,23 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         >
           Content Consumer
         </text>
+
+        {/* Dashed line under Content Consumer header */}
+        <line
+          x1={width - margin - 300}
+          y1={40}
+          x2={width - margin}
+          y2={40}
+          stroke={theme.colors.border.medium}
+          strokeWidth={1}
+          strokeDasharray="5,5"
+        />
       </g>
     );
   };
 
   const renderExtensionPoints = () => {
-    if (options.layoutType !== 'hierarchical' || !data.extensionPoints) {
+    if (!data.extensionPoints) {
       return null;
     }
 
@@ -421,19 +372,15 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
     const getDisplayName = (pluginId: string) => {
       if (pluginId === 'grafana-core') {
-        return 'Grafana Core';
+        return 'grafana core';
       }
-      return pluginId
-        .replace(/^grafana-/, '')
-        .replace(/-app$/, '')
-        .replace(/-/g, ' ')
-        .replace(/\b\w/g, (l) => l.toUpperCase());
+      // Return the plugin ID as-is for consistency with the diagram
+      return pluginId;
     };
 
-    const getShortExtensionName = (extensionId: string) => {
-      // Extract just the last part: "plugins/grafana-extensionstest-app/actions" -> "actions"
-      const parts = extensionId.split('/');
-      return parts[parts.length - 1];
+    const getExtensionDisplayName = (extensionId: string) => {
+      // Return the full extension ID for clarity
+      return extensionId;
     };
 
     return Array.from(extensionPointGroups.entries()).map(([definingPlugin, extensionPointIds]) => {
@@ -442,10 +389,10 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         return null;
       }
 
-      const groupWidth = 240;
+      const groupWidth = 320; // Increased width for longer extension IDs
       const groupHeight = firstEpPos.groupHeight;
-      const extensionBoxWidth = 200;
-      const extensionBoxHeight = 30;
+      const extensionBoxWidth = 280; // Increased width for full extension IDs
+      const extensionBoxHeight = 60; // Increased height for two lines of text
 
       return (
         <g key={definingPlugin}>
@@ -461,17 +408,6 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
             rx={12}
             className={styles.extensionGroupBox}
           />
-
-          {/* Defining plugin name header */}
-          <text
-            x={firstEpPos.x + groupWidth / 2 - 20}
-            y={firstEpPos.groupY + 22}
-            textAnchor="middle"
-            className={styles.definingPluginLabel}
-            fill={theme.colors.text.primary}
-          >
-            {getDisplayName(definingPlugin)}
-          </text>
 
           {/* Extension points */}
           {extensionPointIds.map((epId) => {
@@ -500,42 +436,45 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
                   className={styles.extensionPointBox}
                 />
 
-                {/* Extension type badge */}
-                <rect
-                  x={epPos.x + 5}
-                  y={epPos.y - extensionBoxHeight / 2 + 3}
-                  width={60}
-                  height={14}
-                  fill={theme.colors.background.primary}
-                  stroke={theme.colors.border.weak}
-                  strokeWidth={1}
-                  rx={7}
-                />
-                <text
-                  x={epPos.x + 35}
-                  y={epPos.y - extensionBoxHeight / 2 + 13}
-                  textAnchor="middle"
-                  className={styles.extensionTypeBadge}
-                  fill={theme.colors.text.secondary}
-                >
-                  {extensionType.toUpperCase()}
-                </text>
-
-                {/* Extension point ID */}
+                {/* Extension point ID - first line */}
                 <text
                   x={epPos.x + extensionBoxWidth / 2}
-                  y={epPos.y + 8}
+                  y={epPos.y - 5}
                   textAnchor="middle"
                   className={styles.extensionPointLabel}
                   fill={theme.colors.getContrastText(
                     isComponent ? theme.colors.warning.main : theme.colors.success.main
                   )}
                 >
-                  {getShortExtensionName(epId)}
+                  {getExtensionDisplayName(epId)}
+                </text>
+
+                {/* Extension type - second line in parentheses */}
+                <text
+                  x={epPos.x + extensionBoxWidth / 2}
+                  y={epPos.y + 15}
+                  textAnchor="middle"
+                  className={styles.extensionTypeBadge}
+                  fill={theme.colors.getContrastText(
+                    isComponent ? theme.colors.warning.main : theme.colors.success.main
+                  )}
+                >
+                  ({extensionType} extension)
                 </text>
               </g>
             );
           })}
+
+          {/* Defining plugin name header - aligned with extension point boxes */}
+          <text
+            x={firstEpPos.x}
+            y={firstEpPos.groupY + 22}
+            textAnchor="start"
+            className={styles.definingPluginLabel}
+            fill={theme.colors.text.primary}
+          >
+            {getDisplayName(definingPlugin)}
+          </text>
         </g>
       );
     });
@@ -686,14 +625,14 @@ const getStyles = (theme: GrafanaTheme2, options: PanelOptions) => {
       user-select: none;
     `,
     extensionPointLabel: css`
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 600;
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
       pointer-events: none;
       user-select: none;
     `,
     extensionTypeBadge: css`
-      font-size: 8px;
+      font-size: 10px;
       font-weight: 700;
       pointer-events: none;
       user-select: none;
