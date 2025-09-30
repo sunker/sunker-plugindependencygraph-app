@@ -1,10 +1,15 @@
-import { ExtensionPoint, GraphData, PanelOptions, PluginDependency, PluginNode } from '../types';
+import { ExposedComponent, ExtensionPoint, GraphData, PanelOptions, PluginDependency, PluginNode } from '../types';
 
 import { PanelData } from '@grafana/data';
 import pluginData from '../data.json';
 
 export const processPluginDataToGraph = (options: PanelOptions): GraphData => {
   console.log('processPluginDataToGraph - processing data.json:', Object.keys(pluginData).length, 'plugins');
+
+  // Route to the appropriate processor based on visualization mode
+  if (options.visualizationMode === 'expose') {
+    return processPluginDataToExposeGraph(options);
+  }
 
   const nodes: Map<string, PluginNode> = new Map();
   const dependencies: PluginDependency[] = [];
@@ -226,6 +231,173 @@ export const processPluginDataToGraph = (options: PanelOptions): GraphData => {
   return result;
 };
 
+// Process plugin data for expose mode - shows exposed components and their consumers
+export const processPluginDataToExposeGraph = (options: PanelOptions): GraphData => {
+  console.log('processPluginDataToExposeGraph - processing expose mode data');
+
+  const nodes: Map<string, PluginNode> = new Map();
+  const dependencies: PluginDependency[] = [];
+  const exposedComponents: Map<string, ExposedComponent> = new Map();
+
+  // First pass: collect all exposed components
+  Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
+    const extensions = pluginInfo.extensions;
+
+    // Check if this plugin exposes any components
+    if (extensions.exposedComponents && extensions.exposedComponents.length > 0) {
+      extensions.exposedComponents.forEach((exposedComponent: any) => {
+        if (exposedComponent.id && exposedComponent.id.trim() !== '') {
+          exposedComponents.set(exposedComponent.id, {
+            id: exposedComponent.id,
+            title: exposedComponent.title || exposedComponent.id,
+            description: exposedComponent.description || 'Exposed component',
+            providingPlugin: pluginId,
+            consumers: [],
+          });
+
+          // Add the providing plugin as a node
+          if (!nodes.has(pluginId)) {
+            nodes.set(pluginId, {
+              id: pluginId,
+              name: getDisplayName(pluginId),
+              type: getPluginType(pluginId),
+              version: pluginInfo.version,
+              description: 'Exposes components to other plugins',
+            });
+          }
+        }
+      });
+    }
+  });
+
+  // Second pass: collect dependencies on exposed components
+  Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
+    const pluginDependencies = pluginInfo.dependencies;
+
+    // Check if this plugin depends on any exposed components
+    if (
+      pluginDependencies.extensions?.exposedComponents &&
+      pluginDependencies.extensions.exposedComponents.length > 0
+    ) {
+      pluginDependencies.extensions.exposedComponents.forEach((exposedComponentId: string) => {
+        if (exposedComponentId.trim() !== '') {
+          const exposedComponent = exposedComponents.get(exposedComponentId);
+          if (exposedComponent) {
+            // Add this plugin as a consumer
+            if (!exposedComponent.consumers.includes(pluginId)) {
+              exposedComponent.consumers.push(pluginId);
+            }
+
+            // Create dependency - this represents the flow from provider through component to consumer
+            dependencies.push({
+              source: exposedComponent.providingPlugin, // Provider is the source
+              target: pluginId, // Consumer is the target
+              type: 'depends',
+              description: `${getDisplayName(pluginId)} consumes ${exposedComponent.title} from ${getDisplayName(
+                exposedComponent.providingPlugin
+              )}`,
+            });
+
+            // Add the consuming plugin as a node
+            if (!nodes.has(pluginId)) {
+              nodes.set(pluginId, {
+                id: pluginId,
+                name: getDisplayName(pluginId),
+                type: getPluginType(pluginId),
+                version: pluginInfo.version,
+                description: 'Consumes exposed components from other plugins',
+              });
+            }
+          }
+        }
+      });
+    }
+  });
+
+  // Apply filtering logic
+  let filteredDependencies = dependencies;
+  let filteredExposedComponents = Array.from(exposedComponents.values());
+  let filteredNodes = Array.from(nodes.values());
+
+  // Filter by selected content providers (plugins that expose components)
+  if (options.selectedContentProviders && options.selectedContentProviders.length > 0) {
+    // Filter exposed components to only show those from selected providers
+    filteredExposedComponents = filteredExposedComponents.filter((comp) =>
+      options.selectedContentProviders.includes(comp.providingPlugin)
+    );
+
+    // Filter dependencies to only include those where the provider is in selected providers
+    filteredDependencies = filteredDependencies.filter((dep) => {
+      return options.selectedContentProviders.includes(dep.target);
+    });
+  }
+
+  // Filter by selected content consumers (plugins that consume exposed components)
+  if (options.selectedContentConsumers && options.selectedContentConsumers.length > 0) {
+    filteredDependencies = filteredDependencies.filter((dep) => options.selectedContentConsumers.includes(dep.source));
+    // Also filter exposed components to only show those consumed by selected consumers
+    filteredExposedComponents = filteredExposedComponents.filter((comp) =>
+      comp.consumers.some((consumer) => options.selectedContentConsumers.includes(consumer))
+    );
+  }
+
+  // Get the set of active plugins based on filtered data
+  const activeProviders = new Set(filteredExposedComponents.map((comp) => comp.providingPlugin));
+  const activeConsumers = new Set(filteredDependencies.map((dep) => dep.source));
+
+  console.log('[Expose Mode Debug]');
+  console.log('Filtered exposed components:', filteredExposedComponents);
+  console.log('Active providers:', activeProviders);
+  console.log('Active consumers:', activeConsumers);
+  console.log(
+    'All nodes before filtering:',
+    filteredNodes.map((n) => n.id)
+  );
+
+  // ALWAYS include provider nodes if we have their exposed components
+  // Show all relevant nodes: ALL selected providers + consumers that depend on them
+  filteredNodes = filteredNodes.filter((node) => {
+    const isProvider = activeProviders.has(node.id);
+    const isConsumer = activeConsumers.has(node.id);
+
+    // Always include providers that have exposed components shown
+    if (isProvider) {
+      return true;
+    }
+
+    // Include consumers that depend on the shown exposed components
+    if (isConsumer) {
+      return true;
+    }
+
+    return false;
+  });
+
+  console.log(
+    'Final filtered nodes:',
+    filteredNodes.map(
+      (n) => `${n.id} (${activeProviders.has(n.id) ? 'provider' : ''}${activeConsumers.has(n.id) ? 'consumer' : ''})`
+    )
+  );
+
+  // Update consumers arrays in filtered exposed components to reflect actual filtered dependencies
+  filteredExposedComponents = filteredExposedComponents.map((comp) => ({
+    ...comp,
+    consumers: comp.consumers.filter((consumerId) => activeConsumers.has(consumerId)),
+  }));
+
+  const result: GraphData = {
+    nodes: filteredNodes,
+    dependencies: filteredDependencies,
+    extensionPoints: [], // Not used in expose mode
+    exposedComponents: filteredExposedComponents,
+  };
+
+  console.log('processPluginDataToExposeGraph - final result:', result);
+
+  return result;
+};
+
 // Helper function to find the defining plugin for an extension point target
 const findDefiningPlugin = (target: string, pluginData: any): string => {
   // First check if any plugin explicitly defines this extension point
@@ -293,66 +465,115 @@ export const processTableDataToGraph = (data: PanelData, options: PanelOptions):
 };
 
 // Update the helper functions to work with data.json
-export const getAvailableContentProviders = (): string[] => {
+export const getAvailableContentProviders = (mode: 'add' | 'expose' = 'add'): string[] => {
   const contentProviders = new Set<string>();
 
   Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
     const extensions = pluginInfo.extensions;
 
-    // Check if this plugin is a content provider
-    const isContentProvider =
-      (extensions.addedLinks && extensions.addedLinks.length > 0) ||
-      (extensions.addedComponents && extensions.addedComponents.length > 0) ||
-      (extensions.addedFunctions && extensions.addedFunctions.length > 0);
+    if (mode === 'expose') {
+      // In expose mode, content providers are plugins that expose components
+      const exposesComponents =
+        extensions.exposedComponents &&
+        extensions.exposedComponents.length > 0 &&
+        extensions.exposedComponents.some((comp: any) => comp && comp.id && comp.id.trim() !== '');
 
-    if (isContentProvider) {
-      contentProviders.add(pluginId);
+      if (exposesComponents) {
+        contentProviders.add(pluginId);
+      }
+    } else {
+      // In add mode, content providers are plugins that add extensions
+      const isContentProvider =
+        (extensions.addedLinks && extensions.addedLinks.length > 0) ||
+        (extensions.addedComponents && extensions.addedComponents.length > 0) ||
+        (extensions.addedFunctions && extensions.addedFunctions.length > 0);
+
+      if (isContentProvider) {
+        contentProviders.add(pluginId);
+      }
     }
   });
 
-  return Array.from(contentProviders).sort();
+  const result = Array.from(contentProviders).sort();
+  return result;
 };
 
-export const getAvailableContentConsumers = (): string[] => {
+export const getAvailableContentConsumers = (mode: 'add' | 'expose' = 'add'): string[] => {
   const contentConsumers = new Set<string>();
 
   Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
-    const extensions = pluginInfo.extensions;
+    if (mode === 'expose') {
+      // In expose mode, content consumers are plugins that depend on exposed components
+      const pluginDependencies = pluginInfo.dependencies;
+      const dependsOnExposedComponents =
+        pluginDependencies.extensions?.exposedComponents && pluginDependencies.extensions.exposedComponents.length > 0;
 
-    // Check if this plugin is a content consumer (defines extension points)
-    if (extensions.extensionPoints && extensions.extensionPoints.length > 0) {
-      contentConsumers.add(pluginId);
+      if (dependsOnExposedComponents) {
+        contentConsumers.add(pluginId);
+      }
+    } else {
+      // In add mode, content consumers are plugins that define extension points
+      const extensions = pluginInfo.extensions;
+      if (extensions.extensionPoints && extensions.extensionPoints.length > 0) {
+        contentConsumers.add(pluginId);
+      }
     }
   });
 
   return Array.from(contentConsumers).sort();
 };
 
-export const getActiveContentConsumers = (): string[] => {
+export const getActiveContentConsumers = (mode: 'add' | 'expose' = 'add'): string[] => {
   const activeConsumers = new Set<string>();
 
-  Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
-    const extensions = pluginInfo.extensions;
+  if (mode === 'expose') {
+    // In expose mode, active consumers are plugins that actually depend on components that exist
+    Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
+      const pluginDependencies = pluginInfo.dependencies;
 
-    // Check if any other plugin targets this plugin's extension points
-    if (extensions.extensionPoints && extensions.extensionPoints.length > 0) {
-      const extensionPointIds = extensions.extensionPoints.map((ep) => ep.id);
+      if (
+        pluginDependencies.extensions?.exposedComponents &&
+        pluginDependencies.extensions.exposedComponents.length > 0
+      ) {
+        // Check if any of the components they depend on are actually exposed by other plugins
+        const hasValidDependencies = pluginDependencies.extensions.exposedComponents.some(
+          (exposedComponentId: string) => {
+            return Object.values(pluginData).some((otherPlugin) => {
+              return otherPlugin.extensions.exposedComponents?.some((comp: any) => comp.id === exposedComponentId);
+            });
+          }
+        );
 
-      // Check if any other plugin targets these extension points
-      const hasProviders = Object.values(pluginData).some((otherPlugin) => {
-        const otherExtensions = otherPlugin.extensions;
-        return [
-          ...(otherExtensions.addedLinks || []),
-          ...(otherExtensions.addedComponents || []),
-          ...(otherExtensions.addedFunctions || []),
-        ].some((item) => item.targets?.some((target: string) => extensionPointIds.includes(target)));
-      });
-
-      if (hasProviders) {
-        activeConsumers.add(pluginId);
+        if (hasValidDependencies) {
+          activeConsumers.add(pluginId);
+        }
       }
-    }
-  });
+    });
+  } else {
+    // In add mode, active consumers are plugins with extension points that have providers
+    Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
+      const extensions = pluginInfo.extensions;
+
+      // Check if any other plugin targets this plugin's extension points
+      if (extensions.extensionPoints && extensions.extensionPoints.length > 0) {
+        const extensionPointIds = extensions.extensionPoints.map((ep) => ep.id);
+
+        // Check if any other plugin targets these extension points
+        const hasProviders = Object.values(pluginData).some((otherPlugin) => {
+          const otherExtensions = otherPlugin.extensions;
+          return [
+            ...(otherExtensions.addedLinks || []),
+            ...(otherExtensions.addedComponents || []),
+            ...(otherExtensions.addedFunctions || []),
+          ].some((item) => item.targets?.some((target: string) => extensionPointIds.includes(target)));
+        });
+
+        if (hasProviders) {
+          activeConsumers.add(pluginId);
+        }
+      }
+    });
+  }
 
   return Array.from(activeConsumers).sort();
 };
@@ -364,6 +585,9 @@ export const createSampleData = (): GraphData => {
 };
 
 export const getDefaultOptions = (): PanelOptions => ({
+  // Visualization mode
+  visualizationMode: 'add', // Default to 'add' mode
+
   showDependencyTypes: true,
   layoutType: 'hierarchical',
 

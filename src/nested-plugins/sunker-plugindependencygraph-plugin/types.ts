@@ -23,13 +23,25 @@ export interface ExtensionPoint {
   extensionType?: 'link' | 'component' | 'function'; // type of extension
 }
 
+export interface ExposedComponent {
+  id: string; // exposed component ID (e.g., "grafana-asserts-app/entity-assertions-widget/v1")
+  title: string; // component title
+  description: string; // component description
+  providingPlugin: string; // plugin that exposes this component
+  consumers: string[]; // apps that depend on this exposed component
+}
+
 export interface GraphData {
   nodes: PluginNode[];
   dependencies: PluginDependency[];
   extensionPoints: ExtensionPoint[];
+  exposedComponents?: ExposedComponent[]; // For expose mode visualization
 }
 
 export interface PanelOptions {
+  // Visualization mode
+  visualizationMode: 'add' | 'expose';
+
   // Visualization options
   showDependencyTypes: boolean;
 

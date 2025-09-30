@@ -12,7 +12,9 @@ import React from 'react';
 
 // Custom multiselect editor for content providers
 const ContentProviderMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ value, onChange, context }) => {
-  const availableProviders = getAvailableContentProviders();
+  // Get visualization mode from panel options
+  const visualizationMode = context.options?.visualizationMode || 'add';
+  const availableProviders = getAvailableContentProviders(visualizationMode);
 
   const options = availableProviders.map((provider) => ({
     label: provider,
@@ -40,8 +42,10 @@ const ContentProviderMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ v
 
 // Custom multiselect editor for content consumers
 const ContentConsumerMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ value, onChange, context }) => {
-  const availableConsumers = getAvailableContentConsumers();
-  const activeConsumers = getActiveContentConsumers();
+  // Get visualization mode from panel options
+  const visualizationMode = context.options?.visualizationMode || 'add';
+  const availableConsumers = getAvailableContentConsumers(visualizationMode);
+  const activeConsumers = getActiveContentConsumers(visualizationMode);
 
   const options = availableConsumers.map((consumer) => ({
     label: consumer === 'grafana-core' ? 'Grafana Core' : consumer,
@@ -73,6 +77,20 @@ const ContentConsumerMultiSelect: React.FC<StandardEditorProps<string[]>> = ({ v
 export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).setPanelOptions((builder) => {
   return (
     builder
+      .addSelect({
+        path: 'visualizationMode',
+        name: 'Visualization Mode',
+        description:
+          'Choose between Add mode (plugins adding to extension points) or Expose mode (plugins exposing components)',
+        defaultValue: 'add',
+        settings: {
+          options: [
+            { label: 'Add Mode (Extensions)', value: 'add' },
+            { label: 'Expose Mode (Components)', value: 'expose' },
+          ],
+        },
+      })
+
       .addBooleanSwitch({
         path: 'showDependencyTypes',
         name: 'Show Dependency Types',
@@ -108,7 +126,8 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
         id: 'contentProviderFilter',
         path: 'selectedContentProviders',
         name: 'Content Providers',
-        description: 'Select which content provider apps to display',
+        description:
+          'Add Mode: plugins that add to extension points | Expose Mode: plugins that expose components (left side)',
         editor: ContentProviderMultiSelect,
         category: ['Filtering'],
       })
@@ -116,7 +135,8 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
         id: 'contentConsumerFilter',
         path: 'selectedContentConsumers',
         name: 'Content Consumers',
-        description: 'Select which content consumer apps/plugins to display (defaults to active consumers only)',
+        description:
+          'Add Mode: plugins that define extension points | Expose Mode: plugins that consume exposed components (right side)',
         editor: ContentConsumerMultiSelect,
         category: ['Filtering'],
       })
