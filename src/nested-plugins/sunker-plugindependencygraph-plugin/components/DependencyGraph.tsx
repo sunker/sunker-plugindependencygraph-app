@@ -12,11 +12,6 @@ interface DependencyGraphProps {
   height: number;
 }
 
-interface Position {
-  x: number;
-  y: number;
-}
-
 interface NodeWithPosition extends PluginNode {
   x: number;
   y: number;
@@ -26,8 +21,6 @@ interface NodeWithPosition extends PluginNode {
 export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options, width, height }) => {
   const theme = useTheme2();
   const [nodes, setNodes] = useState<NodeWithPosition[]>([]);
-  const [isDragging, setIsDragging] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 });
   const [selectedExtensionPoint, setSelectedExtensionPoint] = useState<string | null>(null);
   const [selectedExposedComponent, setSelectedExposedComponent] = useState<string | null>(null);
 
@@ -65,8 +58,6 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
       });
 
       const providerNodes = data.nodes.filter((node) => contentProviders.has(node.id));
-      // Note: Don't exclude providers from consumers - a plugin can be both!
-      const consumerNodes = data.nodes.filter((node) => contentConsumers.has(node.id));
 
       // Calculate provider positions based on their component group layout
       if (data.exposedComponents) {
@@ -82,7 +73,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         // Responsive component spacing - add more space between boxes
         const componentSpacing = Math.max(75, height * 0.08); // Min 75px, or 8% of height
         const groupSpacing = Math.max(40, height * 0.05); // Min 40px, or 5% of height
-        let currentGroupY = margin - 5;
+        let currentGroupY = margin + 20; // Account for new main heading
 
         Array.from(componentGroupsByProvider.entries()).forEach(([providingPlugin, componentIds]) => {
           const groupHeight = componentIds.length * componentSpacing + 70;
@@ -132,7 +123,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         });
 
         // Position consumer boxes at each provider level
-        let currentGroupY = margin - 5;
+        let currentGroupY = margin + 20; // Account for new main heading
         Array.from(consumersByProvider.entries()).forEach(([providingPlugin, consumerIds]) => {
           // Get components for this provider to calculate group height
           const providerComponents = data.exposedComponents!.filter((comp) => comp.providingPlugin === providingPlugin);
@@ -180,7 +171,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
       const providerNodes = data.nodes.filter((node) => contentProviders.has(node.id));
 
       // Place content provider apps on the left
-      const providerStartY = margin + 35; // Align with first extension point box (accounting for group header)
+      const providerStartY = margin + 75; // Decrease margin by 5px for better balance
       providerNodes.forEach((node, index) => {
         result.push({
           ...node,
@@ -196,46 +187,6 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   useEffect(() => {
     setNodes(calculateLayout);
   }, [calculateLayout]);
-
-  const handleMouseDown = (nodeId: string, event: React.MouseEvent) => {
-    // Drag is always enabled
-    event.preventDefault();
-    setIsDragging(nodeId);
-
-    const node = nodes.find((n) => n.id === nodeId);
-    if (node) {
-      setDragOffset({
-        x: event.clientX - node.x,
-        y: event.clientY - node.y,
-      });
-    }
-  };
-
-  const handleMouseMove = (event: React.MouseEvent) => {
-    if (!isDragging) {
-      return;
-    }
-
-    const newX = event.clientX - dragOffset.x;
-    const newY = event.clientY - dragOffset.y;
-
-    setNodes((prev) =>
-      prev.map((node) =>
-        node.id === isDragging
-          ? {
-              ...node,
-              x: Math.max(50, Math.min(width - 50, newX)),
-              y: Math.max(50, Math.min(height - 50, newY)),
-            }
-          : node
-      )
-    );
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(null);
-    setDragOffset({ x: 0, y: 0 });
-  };
 
   const renderArrowMarker = () => (
     <defs>
@@ -299,17 +250,18 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     const margin = Math.max(20, width * 0.02);
     const extensionPointSpacing = 65; // Keep original spacing for extension points
     const groupSpacing = 40; // Keep original group spacing
-    const rightSideX = width - margin - 225; // Position extension points properly on right side
+    const extensionBoxWidth = 280; // Width of extension point boxes - further reduced to ensure proper fit
+    const rightSideX = width - margin - extensionBoxWidth - 10; // Position extension points with extra safety margin
 
-    let currentGroupY = margin - 5; // Very close to content consumer header
+    let currentGroupY = margin + 50; // Account for new main heading + space for Content Consumer header
 
     Array.from(extensionPointGroups.entries()).forEach(([definingPlugin, extensionPointIds]) => {
-      const groupHeight = extensionPointIds.length * extensionPointSpacing + 70; // Extra space for group header
+      const groupHeight = extensionPointIds.length * extensionPointSpacing + 50; // Reduced extra space for group header
 
       extensionPointIds.forEach((epId, index) => {
         positions.set(epId, {
           x: rightSideX,
-          y: currentGroupY + 60 + index * extensionPointSpacing, // 60px offset for group header
+          y: currentGroupY + 70 + index * extensionPointSpacing, // Offset to sit below Content Consumer header
           groupY: currentGroupY,
           groupHeight: groupHeight,
         });
@@ -347,7 +299,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     const componentBoxWidth = Math.max(300, width * 0.2); // Smaller width, less padding
     const centerX = width / 2 - componentBoxWidth / 2; // Center the component box
 
-    let currentGroupY = margin - 5;
+    let currentGroupY = margin + 20; // Account for new main heading
 
     Array.from(exposedComponentGroups.entries()).forEach(([providingPlugin, componentIds]) => {
       const groupHeight = componentIds.length * componentSpacing + 70;
@@ -375,7 +327,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     const margin = Math.max(20, width * 0.02);
     const spacing = Math.max(75, height * 0.08);
     const groupSpacing = Math.max(40, height * 0.05);
-    let totalHeight = margin + 80; // Start with margin + header space
+    let totalHeight = margin + 135; // Start with margin + header space (including new main heading + consumer header space)
 
     if (isExposeMode && data.exposedComponents && data.exposedComponents.length > 0) {
       // Group exposed components by their providing plugin
@@ -458,14 +410,13 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         }
 
         // Calculate group center
-        const groupCenterX = firstExtensionPos.x - 30 + (320 + 20) / 2; // Center of the group box (updated for new width)
         const groupCenterY = firstExtensionPos.groupY + firstExtensionPos.groupHeight / 2;
 
         // Responsive node width
         const nodeWidth = Math.max(180, width * 0.15); // Min 180px, or 15% of width
         const startX = sourceNode.x + nodeWidth / 2;
         const startY = sourceNode.y;
-        const endX = groupCenterX - 180; // Point to left edge of group (adjusted for new width)
+        const endX = firstExtensionPos.x - 20; // Point a little further left of extension boxes for optimal visibility
         const endY = groupCenterY;
 
         // Calculate control points for a curved path
@@ -570,14 +521,6 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     return arrows;
   };
 
-  // Helper function to create curved paths
-  const createCurvedPath = (startX: number, startY: number, endX: number, endY: number) => {
-    const midX = (startX + endX) / 2;
-    const controlX1 = startX + (midX - startX) * 0.6;
-    const controlX2 = endX - (endX - midX) * 0.6;
-    return `M ${startX} ${startY} C ${controlX1} ${startY}, ${controlX2} ${endY}, ${endX} ${endY}`;
-  };
-
   const renderNodes = () => {
     let nodesToRender: NodeWithPosition[];
 
@@ -605,8 +548,6 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         <g
           key={node.id}
           transform={`translate(${node.x - nodeWidth / 2}, ${node.y - nodeHeight / 2})`}
-          onMouseDown={(e) => handleMouseDown(node.id, e)}
-          style={{ cursor: 'grab' }}
           className={styles.node}
         >
           {/* Main app box */}
@@ -638,28 +579,39 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   const renderSectionHeaders = () => {
     // Use responsive margins matching the layout
     const margin = Math.max(20, width * 0.02);
-    const nodeWidth = Math.max(180, width * 0.15);
 
     if (isExposeMode) {
       return (
         <g>
+          {/* Main mode heading - centered "Expose APIs" */}
+          <text
+            x={width / 2}
+            y={20}
+            textAnchor="middle"
+            className={styles.sectionHeader}
+            fill={theme.colors.text.primary}
+            style={{ fontSize: '18px', fontWeight: 'bold' }}
+          >
+            Expose APIs
+          </text>
+
           {/* Content Provider Header (left in expose mode) */}
           <text
             x={margin + Math.max(180, width * 0.15) / 2}
-            y={30}
+            y={55}
             textAnchor="middle"
             className={styles.sectionHeader}
             fill={theme.colors.text.primary}
           >
-            Content Provider
+            Content provider
           </text>
 
           {/* Dashed line under Content Provider header */}
           <line
             x1={margin + 10}
-            y1={40}
+            y1={65}
             x2={margin + Math.max(180, width * 0.15) - 10}
-            y2={40}
+            y2={65}
             stroke={theme.colors.border.medium}
             strokeWidth={1}
             strokeDasharray="5,5"
@@ -668,7 +620,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           {/* Components Header (center) */}
           <text
             x={width / 2}
-            y={30}
+            y={55}
             textAnchor="middle"
             className={styles.sectionHeader}
             fill={theme.colors.text.primary}
@@ -679,9 +631,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           {/* Dashed line under Components header */}
           <line
             x1={width / 2 - 100}
-            y1={40}
+            y1={65}
             x2={width / 2 + 100}
-            y2={40}
+            y2={65}
             stroke={theme.colors.border.medium}
             strokeWidth={1}
             strokeDasharray="5,5"
@@ -690,20 +642,20 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           {/* Content Consumer Header (right in expose mode) */}
           <text
             x={width - Math.max(40, width * 0.04) - Math.max(180, width * 0.15) / 2}
-            y={30}
+            y={55}
             textAnchor="middle"
             className={styles.sectionHeader}
             fill={theme.colors.text.primary}
           >
-            Content Consumer
+            Content consumer
           </text>
 
           {/* Dashed line under Content Consumer header */}
           <line
             x1={width - Math.max(40, width * 0.04) - Math.max(180, width * 0.15) + 10}
-            y1={40}
+            y1={65}
             x2={width - Math.max(40, width * 0.04) - 10}
-            y2={40}
+            y2={65}
             stroke={theme.colors.border.medium}
             strokeWidth={1}
             strokeDasharray="5,5"
@@ -714,23 +666,35 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
     return (
       <g>
+        {/* Main mode heading - centered "Add APIs" */}
+        <text
+          x={width / 2}
+          y={20}
+          textAnchor="middle"
+          className={styles.sectionHeader}
+          fill={theme.colors.text.primary}
+          style={{ fontSize: '18px', fontWeight: 'bold' }}
+        >
+          Add APIs
+        </text>
+
         {/* Content Provider Header */}
         <text
           x={margin + 90}
-          y={30}
+          y={55}
           textAnchor="middle"
           className={styles.sectionHeader}
           fill={theme.colors.text.primary}
         >
-          Content Provider
+          Content provider
         </text>
 
         {/* Dashed line under Content Provider header */}
         <line
-          x1={margin + 10}
-          y1={40}
-          x2={margin + 170}
-          y2={40}
+          x1={margin + 90 - Math.max(180, width * 0.15) / 2} // Match left edge of provider box
+          y1={65}
+          x2={margin + 90 + Math.max(180, width * 0.15) / 2} // Match right edge of provider box
+          y2={65}
           stroke={theme.colors.border.medium}
           strokeWidth={1}
           strokeDasharray="5,5"
@@ -738,21 +702,21 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
         {/* Content Consumer Header */}
         <text
-          x={width - margin - 225}
-          y={30}
+          x={width - margin - 150} // Center over the actual box positions (accounting for 10px safety margin)
+          y={55}
           textAnchor="middle"
           className={styles.sectionHeader}
           fill={theme.colors.text.primary}
         >
-          Content Consumer
+          Content consumer
         </text>
 
         {/* Dashed line under Content Consumer header */}
         <line
-          x1={width - margin - 400}
-          y1={40}
-          x2={width - margin - 50}
-          y2={40}
+          x1={width - margin - 290 - 5} // Align with left edge of boxes with small buffer
+          y1={65}
+          x2={width - margin - 10 + 5} // Align with right edge of boxes with small buffer
+          y2={65}
           stroke={theme.colors.border.medium}
           strokeWidth={1}
           strokeDasharray="5,5"
@@ -862,18 +826,17 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         return null;
       }
 
-      const groupWidth = 450; // Further increased width for longer extension IDs
       const groupHeight = firstEpPos.groupHeight;
-      const extensionBoxWidth = 410; // Further increased width for full extension IDs
+      const extensionBoxWidth = 280; // Width for extension IDs - further reduced to ensure proper fit
       const extensionBoxHeight = options.showDependencyTypes ? 60 : 40; // Adjust height based on whether we show type info
 
       return (
         <g key={definingPlugin}>
           {/* Defining plugin group box - make it more prominent */}
           <rect
-            x={firstEpPos.x - 30}
+            x={firstEpPos.x - 10} // Reduced left offset since boxes are now properly positioned
             y={firstEpPos.groupY}
-            width={groupWidth + 20}
+            width={extensionBoxWidth + 20} // Match the extension box width
             height={groupHeight}
             fill={theme.colors.background.secondary}
             stroke={theme.colors.border.strong}
@@ -980,14 +943,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
   return (
     <div className={styles.container}>
-      <svg
-        width={width}
-        height={contentHeight}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        className={styles.svg}
-      >
+      <svg width={width} height={contentHeight} className={styles.svg}>
         {renderArrowMarker()}
         {renderSectionHeaders()}
         {renderDependencyLinks()}
@@ -1010,11 +966,6 @@ const getStyles = (theme: GrafanaTheme2, options: PanelOptions) => {
     svg: css`
       width: 100%;
       min-height: 100%;
-      cursor: grab;
-
-      &:active {
-        cursor: grabbing;
-      }
     `,
     node: css`
       transition: filter 0.2s ease;
@@ -1135,7 +1086,6 @@ const getStyles = (theme: GrafanaTheme2, options: PanelOptions) => {
     sectionHeader: css`
       font-size: 16px;
       font-weight: 700;
-      text-transform: uppercase;
       letter-spacing: 1px;
       pointer-events: none;
       user-select: none;
