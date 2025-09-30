@@ -21,6 +21,8 @@ export interface ExtensionPoint {
   definingPlugin: string; // plugin that defines this extension point
   providers: string[]; // apps that provide content to this extension point
   extensionType?: 'link' | 'component' | 'function'; // type of extension
+  title?: string; // extension point title
+  description?: string; // extension point description
 }
 
 export interface ExposedComponent {
@@ -44,6 +46,7 @@ export interface PanelOptions {
 
   // Visualization options
   showDependencyTypes: boolean;
+  showDescriptions: boolean;
 
   // Layout options
   layoutType: 'hierarchical';

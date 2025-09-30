@@ -48,14 +48,20 @@ export const processPluginDataToGraph = (options: PanelOptions): GraphData => {
 
     // Process extension points that this plugin defines
     if (isContentConsumer) {
-      extensions.extensionPoints.forEach((extensionPoint) => {
+      console.log(`Processing extension points for plugin ${pluginId}:`, extensions.extensionPoints);
+      extensions.extensionPoints.forEach((extensionPoint, index) => {
+        console.log(`Extension point ${index} raw data:`, extensionPoint);
         if (!extensionPoints.has(extensionPoint.id)) {
-          extensionPoints.set(extensionPoint.id, {
+          const processedExtensionPoint = {
             id: extensionPoint.id,
             definingPlugin: pluginId,
             providers: [],
-            extensionType: 'link', // Default type, could be enhanced later
-          });
+            extensionType: 'link' as const, // Default type, could be enhanced later
+            title: extensionPoint.title,
+            description: extensionPoint.description,
+          };
+          console.log(`Processed extension point:`, processedExtensionPoint);
+          extensionPoints.set(extensionPoint.id, processedExtensionPoint);
         }
       });
     }
@@ -74,14 +80,16 @@ export const processPluginDataToGraph = (options: PanelOptions): GraphData => {
           });
 
           // Find the defining plugin for this target extension point
-          const definingPlugin = findDefiningPlugin(target, pluginData);
-          if (definingPlugin && !extensionPoints.has(target)) {
+          const extensionDetails = findExtensionPointDetails(target, pluginData);
+          if (extensionDetails.definingPlugin && !extensionPoints.has(target)) {
             // Create extension point if it doesn't exist
             extensionPoints.set(target, {
               id: target,
-              definingPlugin: definingPlugin,
+              definingPlugin: extensionDetails.definingPlugin,
               providers: [],
               extensionType: 'link',
+              title: extensionDetails.title,
+              description: extensionDetails.description,
             });
           }
 
@@ -103,13 +111,15 @@ export const processPluginDataToGraph = (options: PanelOptions): GraphData => {
             description: `${getDisplayName(pluginId)} provides component to ${target}`,
           });
 
-          const definingPlugin = findDefiningPlugin(target, pluginData);
-          if (definingPlugin && !extensionPoints.has(target)) {
+          const extensionDetails = findExtensionPointDetails(target, pluginData);
+          if (extensionDetails.definingPlugin && !extensionPoints.has(target)) {
             extensionPoints.set(target, {
               id: target,
-              definingPlugin: definingPlugin,
+              definingPlugin: extensionDetails.definingPlugin,
               providers: [],
               extensionType: 'component',
+              title: extensionDetails.title,
+              description: extensionDetails.description,
             });
           }
 
@@ -130,13 +140,15 @@ export const processPluginDataToGraph = (options: PanelOptions): GraphData => {
             description: `${getDisplayName(pluginId)} provides function to ${target}`,
           });
 
-          const definingPlugin = findDefiningPlugin(target, pluginData);
-          if (definingPlugin && !extensionPoints.has(target)) {
+          const extensionDetails = findExtensionPointDetails(target, pluginData);
+          if (extensionDetails.definingPlugin && !extensionPoints.has(target)) {
             extensionPoints.set(target, {
               id: target,
-              definingPlugin: definingPlugin,
+              definingPlugin: extensionDetails.definingPlugin,
               providers: [],
               extensionType: 'function',
+              title: extensionDetails.title,
+              description: extensionDetails.description,
             });
           }
 
@@ -227,6 +239,15 @@ export const processPluginDataToGraph = (options: PanelOptions): GraphData => {
   };
 
   console.log('processPluginDataToGraph - final result:', result);
+  console.log('Final extension points count:', result.extensionPoints.length);
+  result.extensionPoints.forEach((ep, index) => {
+    console.log(`Final extension point ${index}:`, {
+      id: ep.id,
+      title: ep.title,
+      description: ep.description,
+      definingPlugin: ep.definingPlugin,
+    });
+  });
 
   return result;
 };
@@ -398,20 +419,28 @@ export const processPluginDataToExposeGraph = (options: PanelOptions): GraphData
   return result;
 };
 
-// Helper function to find the defining plugin for an extension point target
-const findDefiningPlugin = (target: string, pluginData: any): string => {
+// Helper function to find the defining plugin and extension point details for a target
+const findExtensionPointDetails = (
+  target: string,
+  pluginData: any
+): { definingPlugin: string; title?: string; description?: string } => {
   // First check if any plugin explicitly defines this extension point
   for (const [pluginId, pluginInfo] of Object.entries(pluginData)) {
     const extensions = (pluginInfo as any).extensions;
-    if (extensions.extensionPoints?.some((ep: any) => ep.id === target)) {
-      return pluginId;
+    const extensionPoint = extensions.extensionPoints?.find((ep: any) => ep.id === target);
+    if (extensionPoint) {
+      return {
+        definingPlugin: pluginId,
+        title: extensionPoint.title,
+        description: extensionPoint.description,
+      };
     }
   }
 
   // If not found, try to infer from the target ID format
   // Many extension points follow the pattern "pluginId/..." or "grafana/..."
   if (target.startsWith('grafana/')) {
-    return 'grafana-core';
+    return { definingPlugin: 'grafana-core' };
   }
 
   // Try to match plugin ID from the beginning of the target
@@ -419,18 +448,18 @@ const findDefiningPlugin = (target: string, pluginData: any): string => {
   if (targetParts.length > 0) {
     const potentialPluginId = targetParts[0];
     if (pluginData[potentialPluginId]) {
-      return potentialPluginId;
+      return { definingPlugin: potentialPluginId };
     }
 
     // Try with -app suffix
     const potentialPluginIdWithApp = `${potentialPluginId}-app`;
     if (pluginData[potentialPluginIdWithApp]) {
-      return potentialPluginIdWithApp;
+      return { definingPlugin: potentialPluginIdWithApp };
     }
   }
 
   // Default fallback
-  return 'grafana-core';
+  return { definingPlugin: 'grafana-core' };
 };
 
 // Helper functions for plugin display and type handling
@@ -589,6 +618,7 @@ export const getDefaultOptions = (): PanelOptions => ({
   visualizationMode: 'add', // Default to 'add' mode
 
   showDependencyTypes: true,
+  showDescriptions: false, // Hidden by default
   layoutType: 'hierarchical',
 
   // Filtering options

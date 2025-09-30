@@ -97,6 +97,12 @@ export const plugin = new PanelPlugin<PanelOptions>(PluginDependencyGraphPanel).
         description: 'Display the type of dependency on links',
         defaultValue: true,
       })
+      .addBooleanSwitch({
+        path: 'showDescriptions',
+        name: 'Show Descriptions',
+        description: 'Display descriptions underneath extension points and exposed components',
+        defaultValue: false,
+      })
 
       // Color options
       .addColorPicker({

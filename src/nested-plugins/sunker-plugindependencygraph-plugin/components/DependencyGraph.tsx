@@ -70,8 +70,27 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           componentGroupsByProvider.get(comp.providingPlugin)!.push(comp.id);
         });
 
+        // Create consumer mapping for positioning
+        const consumersByProvider = new Map<string, Set<string>>();
+        data.exposedComponents.forEach((comp) => {
+          if (!consumersByProvider.has(comp.providingPlugin)) {
+            consumersByProvider.set(comp.providingPlugin, new Set());
+          }
+          comp.consumers.forEach((consumerId) => {
+            consumersByProvider.get(comp.providingPlugin)!.add(consumerId);
+          });
+        });
+
+        // Consumer positioning variables
+        const rightMargin = Math.max(40, width * 0.04);
+        const consumerX = width - rightMargin - Math.max(180, width * 0.15) / 2;
+
         // Responsive component spacing - add more space between boxes
-        const componentSpacing = Math.max(75, height * 0.08); // Min 75px, or 8% of height
+        let componentSpacing = Math.max(75, height * 0.08); // Min 75px, or 8% of height
+        // Increase spacing when descriptions are shown
+        if (options.showDescriptions) {
+          componentSpacing += 20;
+        }
         const groupSpacing = Math.max(40, height * 0.05); // Min 40px, or 5% of height
         let currentGroupY = margin + 20; // Account for new main heading
 
@@ -95,59 +114,45 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
             console.log(`Provider node not found for ${providingPlugin}`);
           }
 
-          currentGroupY += groupHeight + groupSpacing;
-        });
-      }
+          // Position consumers for this provider within the same group area
+          const consumerIds = consumersByProvider.get(providingPlugin);
+          if (consumerIds) {
+            const consumerArray = Array.from(consumerIds);
+            consumerArray.forEach((consumerId, consumerIndex) => {
+              const consumerNode = data.nodes.find((n) => n.id === consumerId);
+              if (consumerNode) {
+                // Distribute consumers evenly within the provider's group height
+                let consumerY;
+                if (consumerArray.length === 1) {
+                  // Single consumer: center it in the group
+                  consumerY = currentGroupY + groupHeight / 2;
+                } else {
+                  // Multiple consumers: ensure minimum spacing of 80px between them
+                  const minSpacing = 80;
+                  const startY = currentGroupY + 60;
+                  const totalSpacing = (consumerArray.length - 1) * minSpacing;
+                  const availableHeight = groupHeight - 120;
 
-      // Place consumer apps grouped by provider level - each consumer appears at the level of components it consumes
-      const nodeBoxWidth = Math.max(180, width * 0.15); // Min 180px, or 15% of width
-      const rightMargin = Math.max(40, width * 0.04); // Even larger right margin for better visual spacing
-      const consumerX = width - rightMargin - nodeBoxWidth / 2; // Position with generous right margin
+                  if (totalSpacing <= availableHeight) {
+                    // Use minimum spacing if it fits
+                    consumerY = startY + consumerIndex * minSpacing;
+                  } else {
+                    // Use available space evenly if minimum spacing doesn't fit
+                    const actualSpacing = availableHeight / (consumerArray.length - 1);
+                    consumerY = startY + consumerIndex * actualSpacing;
+                  }
+                }
 
-      // Define spacing variables for consumer positioning
-      const componentSpacing = Math.max(75, height * 0.08); // Same as provider section
-      const groupSpacing = Math.max(40, height * 0.05); // Same as provider section
-
-      // Group consumers by the provider whose components they consume
-      if (data.exposedComponents) {
-        // Create a map: provider -> set of consumers that consume from this provider
-        const consumersByProvider = new Map<string, Set<string>>();
-
-        data.exposedComponents.forEach((comp) => {
-          if (!consumersByProvider.has(comp.providingPlugin)) {
-            consumersByProvider.set(comp.providingPlugin, new Set());
+                result.push({
+                  ...consumerNode,
+                  id: `${consumerId}-at-${providingPlugin}`, // Unique ID for multiple instances
+                  originalId: consumerId, // Keep original ID for matching with arrows
+                  x: consumerX,
+                  y: consumerY,
+                });
+              }
+            });
           }
-          comp.consumers.forEach((consumerId) => {
-            consumersByProvider.get(comp.providingPlugin)!.add(consumerId);
-          });
-        });
-
-        // Position consumer boxes at each provider level
-        let currentGroupY = margin + 20; // Account for new main heading
-        Array.from(consumersByProvider.entries()).forEach(([providingPlugin, consumerIds]) => {
-          // Get components for this provider to calculate group height
-          const providerComponents = data.exposedComponents!.filter((comp) => comp.providingPlugin === providingPlugin);
-          const groupHeight = providerComponents.length * componentSpacing + 70;
-
-          // Position consumers for this provider within the provider's group area
-          const consumerArray = Array.from(consumerIds);
-          consumerArray.forEach((consumerId, consumerIndex) => {
-            const consumerNode = data.nodes.find((n) => n.id === consumerId);
-            if (consumerNode) {
-              // Distribute consumers evenly within the provider's group height
-              const availableHeight = groupHeight - 120; // Leave margins
-              const consumerSpacing = availableHeight / Math.max(1, consumerArray.length - 1);
-              const consumerY = currentGroupY + 60 + consumerIndex * consumerSpacing;
-
-              result.push({
-                ...consumerNode,
-                id: `${consumerId}-at-${providingPlugin}`, // Unique ID for multiple instances
-                originalId: consumerId, // Keep original ID for matching with arrows
-                x: consumerX,
-                y: consumerY,
-              });
-            }
-          });
 
           currentGroupY += groupHeight + groupSpacing;
         });
@@ -182,7 +187,16 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     }
 
     return result;
-  }, [data.nodes, data.dependencies, data.extensionPoints, data.exposedComponents, isExposeMode, width, height]);
+  }, [
+    data.nodes,
+    data.dependencies,
+    data.extensionPoints,
+    data.exposedComponents,
+    isExposeMode,
+    width,
+    height,
+    options.showDescriptions,
+  ]);
 
   useEffect(() => {
     setNodes(calculateLayout);
@@ -248,7 +262,11 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     const positions = new Map<string, { x: number; y: number; groupY: number; groupHeight: number }>();
     // Use responsive values but keep extension points properly positioned
     const margin = Math.max(20, width * 0.02);
-    const extensionPointSpacing = 65; // Keep original spacing for extension points
+    let extensionPointSpacing = 65; // Base spacing for extension points
+    // Increase spacing when descriptions are shown
+    if (options.showDescriptions) {
+      extensionPointSpacing += 20;
+    }
     const groupSpacing = 40; // Keep original group spacing
     const extensionBoxWidth = 280; // Width of extension point boxes - further reduced to ensure proper fit
     const rightSideX = width - margin - extensionBoxWidth - 10; // Position extension points with extra safety margin
@@ -293,7 +311,11 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     const positions = new Map<string, { x: number; y: number; groupY: number; groupHeight: number }>();
     // Responsive values matching calculateLayout
     const margin = Math.max(20, width * 0.02);
-    const componentSpacing = Math.max(75, height * 0.08);
+    let componentSpacing = Math.max(75, height * 0.08);
+    // Increase spacing when descriptions are shown
+    if (options.showDescriptions) {
+      componentSpacing += 20;
+    }
     const groupSpacing = Math.max(40, height * 0.05);
     // Responsive center position with optimized component box width
     const componentBoxWidth = Math.max(300, width * 0.2); // Smaller width, less padding
@@ -325,7 +347,11 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   const calculateContentHeight = () => {
     // Use responsive values matching other functions
     const margin = Math.max(20, width * 0.02);
-    const spacing = Math.max(75, height * 0.08);
+    let spacing = Math.max(75, height * 0.08);
+    // Increase spacing when descriptions are shown
+    if (options.showDescriptions) {
+      spacing += 20;
+    }
     const groupSpacing = Math.max(40, height * 0.05);
     let totalHeight = margin + 135; // Start with margin + header space (including new main heading + consumer header space)
 
@@ -740,14 +766,20 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
       // Responsive component box dimensions - optimized for less padding
       const componentBoxWidth = Math.max(300, width * 0.2); // Smaller width, less padding
-      const componentBoxHeight = Math.max(55, height * 0.06); // Min 55px, or 6% of height
+      // Calculate height - keep original height for positioning, extend bottom for descriptions
+      const originalComponentHeight = Math.max(55, height * 0.06); // Min 55px, or 6% of height
+      let componentBoxHeight = originalComponentHeight;
+      if (options.showDescriptions) {
+        // Add extra height for description text when enabled (only extends bottom)
+        componentBoxHeight += 20;
+      }
 
       return (
         <g key={exposedComponent.id}>
           {/* Individual exposed component box */}
           <rect
             x={compPos.x}
-            y={compPos.y - componentBoxHeight / 2}
+            y={compPos.y - originalComponentHeight / 2}
             width={componentBoxWidth}
             height={componentBoxHeight}
             fill={theme.colors.warning.main}
@@ -788,6 +820,19 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           >
             {exposedComponent.id}
           </text>
+
+          {/* Description text underneath component ID - only show if enabled and description exists */}
+          {options.showDescriptions && exposedComponent?.description && exposedComponent.description.trim() !== '' && (
+            <text
+              x={compPos.x + componentBoxWidth / 2}
+              y={compPos.y + 30}
+              textAnchor="middle"
+              className={styles.descriptionInlineText}
+              fill={theme.colors.getContrastText(theme.colors.warning.main)}
+            >
+              {exposedComponent.description}
+            </text>
+          )}
         </g>
       );
     });
@@ -796,6 +841,11 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   const renderExtensionPoints = () => {
     if (isExposeMode || !data.extensionPoints) {
       return null;
+    }
+
+    console.log('DependencyGraph - Rendering extension points. Total count:', data.extensionPoints.length);
+    if (data.extensionPoints.length > 0) {
+      console.log('Sample extension point data:', data.extensionPoints[0]);
     }
 
     // Group extension points by their defining plugin
@@ -828,7 +878,13 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
       const groupHeight = firstEpPos.groupHeight;
       const extensionBoxWidth = 280; // Width for extension IDs - further reduced to ensure proper fit
-      const extensionBoxHeight = options.showDependencyTypes ? 60 : 40; // Adjust height based on whether we show type info
+      // Calculate height - keep original height for positioning, extend bottom for descriptions
+      const originalHeight = options.showDependencyTypes ? 60 : 40;
+      let extensionBoxHeight = originalHeight;
+      if (options.showDescriptions) {
+        // Add extra height for description text when enabled (only extends bottom)
+        extensionBoxHeight += 20;
+      }
 
       return (
         <g key={definingPlugin}>
@@ -876,7 +932,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
                 {/* Extension point box with type-specific color */}
                 <rect
                   x={epPos.x}
-                  y={epPos.y - extensionBoxHeight / 2}
+                  y={epPos.y - originalHeight / 2}
                   width={extensionBoxWidth}
                   height={extensionBoxHeight}
                   fill={extensionColor}
@@ -903,15 +959,32 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
                 {/* Extension type - second line in parentheses */}
                 {options.showDependencyTypes && (
-                  <text
-                    x={epPos.x + extensionBoxWidth / 2}
-                    y={epPos.y + 15}
-                    textAnchor="middle"
-                    className={styles.extensionTypeBadge}
-                    fill={theme.colors.getContrastText(extensionColor)}
-                  >
-                    ({extensionType} extension)
-                  </text>
+                  <g>
+                    <text
+                      x={epPos.x + extensionBoxWidth / 2}
+                      y={epPos.y + 15}
+                      textAnchor="middle"
+                      className={styles.extensionTypeBadge}
+                      fill={theme.colors.getContrastText(extensionColor)}
+                    >
+                      ({extensionType} extension)
+                    </text>
+
+                    {/* Description text underneath parentheses - only show if enabled and description exists */}
+                    {options.showDescriptions &&
+                      extensionPoint?.description &&
+                      extensionPoint.description.trim() !== '' && (
+                        <text
+                          x={epPos.x + extensionBoxWidth / 2}
+                          y={epPos.y + 30}
+                          textAnchor="middle"
+                          className={styles.descriptionInlineText}
+                          fill={theme.colors.getContrastText(extensionColor)}
+                        >
+                          {extensionPoint.description}
+                        </text>
+                      )}
+                  </g>
                 )}
               </g>
             );
@@ -1103,6 +1176,15 @@ const getStyles = (theme: GrafanaTheme2, options: PanelOptions) => {
       p {
         margin: 0.5rem 0;
       }
+    `,
+    descriptionInlineText: css`
+      font-size: 10px;
+      font-weight: 500;
+      font-style: italic;
+      pointer-events: none;
+      user-select: none;
+      opacity: 0.9;
+      font-family: ${theme.typography.fontFamily};
     `,
   };
 };
