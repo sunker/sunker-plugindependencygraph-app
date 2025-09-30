@@ -184,14 +184,14 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
       providerNodes.forEach((node, index) => {
         result.push({
           ...node,
-          x: margin + 100, // Give more space for app boxes
+          x: margin + 90, // Position provider boxes properly
           y: providerStartY + index * nodeSpacing,
         });
       });
     }
 
     return result;
-  }, [data.nodes, data.dependencies, data.extensionPoints, isExposeMode, width]);
+  }, [data.nodes, data.dependencies, data.extensionPoints, data.exposedComponents, isExposeMode, width, height]);
 
   useEffect(() => {
     setNodes(calculateLayout);
@@ -295,10 +295,11 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     });
 
     const positions = new Map<string, { x: number; y: number; groupY: number; groupHeight: number }>();
-    const margin = 80;
-    const extensionPointSpacing = 65; // Decreased spacing between extension point boxes
-    const groupSpacing = 40; // Much smaller distance between plugin groups
-    const rightSideX = width - margin - 450; // Position on right side, adjusted for wider boxes
+    // Use responsive values but keep extension points properly positioned
+    const margin = Math.max(20, width * 0.02);
+    const extensionPointSpacing = 65; // Keep original spacing for extension points
+    const groupSpacing = 40; // Keep original group spacing
+    const rightSideX = width - margin - 225; // Position extension points properly on right side
 
     let currentGroupY = margin - 5; // Very close to content consumer header
 
@@ -715,7 +716,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
       <g>
         {/* Content Provider Header */}
         <text
-          x={margin + 100}
+          x={margin + 90}
           y={30}
           textAnchor="middle"
           className={styles.sectionHeader}
@@ -726,9 +727,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
         {/* Dashed line under Content Provider header */}
         <line
-          x1={margin}
+          x1={margin + 10}
           y1={40}
-          x2={margin + 200}
+          x2={margin + 170}
           y2={40}
           stroke={theme.colors.border.medium}
           strokeWidth={1}
@@ -748,9 +749,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
         {/* Dashed line under Content Consumer header */}
         <line
-          x1={width - margin - 450}
+          x1={width - margin - 400}
           y1={40}
-          x2={width - margin}
+          x2={width - margin - 50}
           y2={40}
           stroke={theme.colors.border.medium}
           strokeWidth={1}
