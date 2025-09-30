@@ -20,6 +20,7 @@ interface Position {
 interface NodeWithPosition extends PluginNode {
   x: number;
   y: number;
+  originalId?: string; // For handling multiple instances of same consumer
 }
 
 export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options, width, height }) => {
@@ -40,8 +41,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
       return [];
     }
 
-    const margin = 80;
-    const nodeSpacing = 100;
+    // Responsive spacing - much tighter margins to use more space
+    const margin = Math.max(20, width * 0.02); // Min 20px, or 2% of width
+    const nodeSpacing = Math.max(70, height * 0.08); // Min 70px, or 8% of height
     const result: NodeWithPosition[] = [];
 
     if (isExposeMode) {
@@ -63,22 +65,8 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
       });
 
       const providerNodes = data.nodes.filter((node) => contentProviders.has(node.id));
-      const consumerNodes = data.nodes.filter(
-        (node) => contentConsumers.has(node.id) && !contentProviders.has(node.id)
-      );
-
-      console.log('[Layout Debug]');
-      console.log('Dependencies:', data.dependencies);
-      console.log('Content providers:', contentProviders);
-      console.log('Content consumers:', contentConsumers);
-      console.log(
-        'Provider nodes to position:',
-        providerNodes.map((n) => n.id)
-      );
-      console.log(
-        'Consumer nodes to position:',
-        consumerNodes.map((n) => n.id)
-      );
+      // Note: Don't exclude providers from consumers - a plugin can be both!
+      const consumerNodes = data.nodes.filter((node) => contentConsumers.has(node.id));
 
       // Calculate provider positions based on their component group layout
       if (data.exposedComponents) {
@@ -91,9 +79,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           componentGroupsByProvider.get(comp.providingPlugin)!.push(comp.id);
         });
 
-        // Calculate where each provider group would be positioned (using same logic as exposed components)
-        const componentSpacing = 65;
-        const groupSpacing = 40;
+        // Responsive component spacing - add more space between boxes
+        const componentSpacing = Math.max(75, height * 0.08); // Min 75px, or 8% of height
+        const groupSpacing = Math.max(40, height * 0.05); // Min 40px, or 5% of height
         let currentGroupY = margin - 5;
 
         Array.from(componentGroupsByProvider.entries()).forEach(([providingPlugin, componentIds]) => {
@@ -103,12 +91,15 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           // Find the provider node for this plugin
           const providerNode = providerNodes.find((node) => node.id === providingPlugin);
           if (providerNode) {
+            // Provider positioning - ensure it fits within panel bounds
+            const nodeWidth = Math.max(180, width * 0.15);
+            const providerX = margin + nodeWidth / 2; // Center the box from left edge
             result.push({
               ...providerNode,
-              x: margin + 100,
+              x: providerX,
               y: groupCenterY,
             });
-            console.log(`Positioned provider ${providingPlugin} at (${margin + 100}, ${groupCenterY})`);
+            console.log(`Positioned provider ${providingPlugin} at (${providerX}, ${groupCenterY})`);
           } else {
             console.log(`Provider node not found for ${providingPlugin}`);
           }
@@ -117,18 +108,59 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         });
       }
 
-      // Place content consumer apps on the right
-      const consumerStartY = margin + 35;
-      const consumerX = width - margin - 110; // Position on right side (adjusted)
-      consumerNodes.forEach((node, index) => {
-        result.push({
-          ...node,
-          x: consumerX,
-          y: consumerStartY + index * nodeSpacing,
-        });
-      });
+      // Place consumer apps grouped by provider level - each consumer appears at the level of components it consumes
+      const nodeBoxWidth = Math.max(180, width * 0.15); // Min 180px, or 15% of width
+      const rightMargin = Math.max(40, width * 0.04); // Even larger right margin for better visual spacing
+      const consumerX = width - rightMargin - nodeBoxWidth / 2; // Position with generous right margin
 
-      console.log('Positioned consumer nodes:', consumerNodes.length, 'at x:', consumerX);
+      // Define spacing variables for consumer positioning
+      const componentSpacing = Math.max(75, height * 0.08); // Same as provider section
+      const groupSpacing = Math.max(40, height * 0.05); // Same as provider section
+
+      // Group consumers by the provider whose components they consume
+      if (data.exposedComponents) {
+        // Create a map: provider -> set of consumers that consume from this provider
+        const consumersByProvider = new Map<string, Set<string>>();
+
+        data.exposedComponents.forEach((comp) => {
+          if (!consumersByProvider.has(comp.providingPlugin)) {
+            consumersByProvider.set(comp.providingPlugin, new Set());
+          }
+          comp.consumers.forEach((consumerId) => {
+            consumersByProvider.get(comp.providingPlugin)!.add(consumerId);
+          });
+        });
+
+        // Position consumer boxes at each provider level
+        let currentGroupY = margin - 5;
+        Array.from(consumersByProvider.entries()).forEach(([providingPlugin, consumerIds]) => {
+          // Get components for this provider to calculate group height
+          const providerComponents = data.exposedComponents!.filter((comp) => comp.providingPlugin === providingPlugin);
+          const groupHeight = providerComponents.length * componentSpacing + 70;
+
+          // Position consumers for this provider within the provider's group area
+          const consumerArray = Array.from(consumerIds);
+          consumerArray.forEach((consumerId, consumerIndex) => {
+            const consumerNode = data.nodes.find((n) => n.id === consumerId);
+            if (consumerNode) {
+              // Distribute consumers evenly within the provider's group height
+              const availableHeight = groupHeight - 120; // Leave margins
+              const consumerSpacing = availableHeight / Math.max(1, consumerArray.length - 1);
+              const consumerY = currentGroupY + 60 + consumerIndex * consumerSpacing;
+
+              result.push({
+                ...consumerNode,
+                id: `${consumerId}-at-${providingPlugin}`, // Unique ID for multiple instances
+                originalId: consumerId, // Keep original ID for matching with arrows
+                x: consumerX,
+                y: consumerY,
+              });
+            }
+          });
+
+          currentGroupY += groupHeight + groupSpacing;
+        });
+      }
     } else {
       // Add mode layout: Content Providers on left, Extension Points on right
       if (!data.extensionPoints) {
@@ -306,10 +338,13 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     });
 
     const positions = new Map<string, { x: number; y: number; groupY: number; groupHeight: number }>();
-    const margin = 80;
-    const componentSpacing = 65;
-    const groupSpacing = 40;
-    const centerX = width / 2 - 200; // Position in center
+    // Responsive values matching calculateLayout
+    const margin = Math.max(20, width * 0.02);
+    const componentSpacing = Math.max(75, height * 0.08);
+    const groupSpacing = Math.max(40, height * 0.05);
+    // Responsive center position with optimized component box width
+    const componentBoxWidth = Math.max(300, width * 0.2); // Smaller width, less padding
+    const centerX = width / 2 - componentBoxWidth / 2; // Center the component box
 
     let currentGroupY = margin - 5;
 
@@ -335,9 +370,10 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
   // Calculate the total height needed for all content
   const calculateContentHeight = () => {
-    const margin = 80;
-    const spacing = 65;
-    const groupSpacing = 40;
+    // Use responsive values matching other functions
+    const margin = Math.max(20, width * 0.02);
+    const spacing = Math.max(75, height * 0.08);
+    const groupSpacing = Math.max(40, height * 0.05);
     let totalHeight = margin + 80; // Start with margin + header space
 
     if (isExposeMode && data.exposedComponents && data.exposedComponents.length > 0) {
@@ -424,7 +460,8 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         const groupCenterX = firstExtensionPos.x - 30 + (320 + 20) / 2; // Center of the group box (updated for new width)
         const groupCenterY = firstExtensionPos.groupY + firstExtensionPos.groupHeight / 2;
 
-        const nodeWidth = 220;
+        // Responsive node width
+        const nodeWidth = Math.max(180, width * 0.15); // Min 180px, or 15% of width
         const startX = sourceNode.x + nodeWidth / 2;
         const startY = sourceNode.y;
         const endX = groupCenterX - 180; // Point to left edge of group (adjusted for new width)
@@ -470,6 +507,10 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
     const arrows: React.JSX.Element[] = [];
 
+    // Calculate responsive dimensions (matching the box rendering)
+    const nodeWidth = Math.max(180, width * 0.15);
+    const componentBoxWidth = Math.max(300, width * 0.2);
+
     // For each exposed component, create two types of arrows:
     // 1. One arrow from provider to component
     // 2. Multiple arrows from component to consumers
@@ -481,16 +522,16 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
       const isHighlighted = selectedExposedComponent === exposedComponent.id;
 
-      // Find provider node (left side)
-      const providerNode = nodes.find((n) => n.id === exposedComponent.providingPlugin);
+      // Find the actual provider node on the left side (not consumer instances)
+      const providerNode = nodes.find((n) => n.id === exposedComponent.providingPlugin && !n.originalId);
       if (providerNode) {
-        // Arrow: Provider → Component (left to center)
+        // Arrow: Provider → Its Own Component (left to center)
         arrows.push(
           <line
             key={`provider-to-component-${exposedComponent.id}`}
-            x1={providerNode.x + 110} // Right edge of provider box
+            x1={providerNode.x + nodeWidth / 2} // Right edge of provider box
             y1={providerNode.y}
-            x2={componentPos.x - 205} // Left edge of component box
+            x2={componentPos.x} // Left edge of component box
             y2={componentPos.y}
             stroke={isHighlighted ? theme.colors.success.main : theme.colors.primary.main}
             strokeWidth={isHighlighted ? 3 : 2}
@@ -500,24 +541,28 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         );
       }
 
-      // Arrows: Consumers → Component (right to center)
+      // Arrows: Consumers → Component (right to center) - pointing to right edge of component box
       exposedComponent.consumers.forEach((consumerId) => {
-        const consumerNode = nodes.find((n) => n.id === consumerId);
-        if (consumerNode) {
-          arrows.push(
-            <line
-              key={`consumer-to-component-${exposedComponent.id}-${consumerId}`}
-              x1={consumerNode.x - 110} // Left edge of consumer box
-              y1={consumerNode.y}
-              x2={componentPos.x + 205} // Right edge of component box
-              y2={componentPos.y}
-              stroke={isHighlighted ? theme.colors.success.main : theme.colors.primary.main}
-              strokeWidth={isHighlighted ? 3 : 2}
-              markerEnd={isHighlighted ? 'url(#arrowhead-highlighted)' : 'url(#arrowhead)'}
-              opacity={selectedExposedComponent && !isHighlighted ? 0.3 : 1}
-            />
-          );
-        }
+        // Find ONLY consumer instances (with originalId), NOT provider boxes
+        const consumerInstances = nodes.filter((n) => n.originalId === consumerId);
+        consumerInstances.forEach((consumerNode) => {
+          // Only draw arrow if this consumer instance is at the same provider level as this component
+          if (consumerNode.id.includes(`-at-${exposedComponent.providingPlugin}`)) {
+            arrows.push(
+              <line
+                key={`consumer-to-component-${exposedComponent.id}-${consumerNode.id}`}
+                x1={consumerNode.x - nodeWidth / 2} // Left edge of consumer box
+                y1={consumerNode.y}
+                x2={componentPos.x + componentBoxWidth} // Right edge of component box
+                y2={componentPos.y}
+                stroke={isHighlighted ? theme.colors.success.main : theme.colors.primary.main}
+                strokeWidth={isHighlighted ? 3 : 2}
+                markerEnd={isHighlighted ? 'url(#arrowhead-highlighted)' : 'url(#arrowhead)'}
+                opacity={selectedExposedComponent && !isHighlighted ? 0.3 : 1}
+              />
+            );
+          }
+        });
       });
     });
 
@@ -551,8 +596,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     }
 
     return nodesToRender.map((node) => {
-      const nodeWidth = 220;
-      const nodeHeight = 60;
+      // Responsive node dimensions
+      const nodeWidth = Math.max(180, width * 0.15); // Min 180px, or 15% of width
+      const nodeHeight = Math.max(50, height * 0.05); // Min 50px, or 5% of height
 
       return (
         <g
@@ -581,7 +627,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
             className={styles.appIdLabel}
             fill={theme.colors.getContrastText(theme.colors.primary.main)}
           >
-            {node.id}
+            {node.originalId || node.id}
           </text>
         </g>
       );
@@ -589,14 +635,16 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   };
 
   const renderSectionHeaders = () => {
-    const margin = 80;
+    // Use responsive margins matching the layout
+    const margin = Math.max(20, width * 0.02);
+    const nodeWidth = Math.max(180, width * 0.15);
 
     if (isExposeMode) {
       return (
         <g>
           {/* Content Provider Header (left in expose mode) */}
           <text
-            x={margin + 100}
+            x={margin + Math.max(180, width * 0.15) / 2}
             y={30}
             textAnchor="middle"
             className={styles.sectionHeader}
@@ -607,9 +655,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
           {/* Dashed line under Content Provider header */}
           <line
-            x1={margin}
+            x1={margin + 10}
             y1={40}
-            x2={margin + 200}
+            x2={margin + Math.max(180, width * 0.15) - 10}
             y2={40}
             stroke={theme.colors.border.medium}
             strokeWidth={1}
@@ -629,9 +677,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
           {/* Dashed line under Components header */}
           <line
-            x1={width / 2 - 125}
+            x1={width / 2 - 100}
             y1={40}
-            x2={width / 2 + 125}
+            x2={width / 2 + 100}
             y2={40}
             stroke={theme.colors.border.medium}
             strokeWidth={1}
@@ -640,7 +688,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
           {/* Content Consumer Header (right in expose mode) */}
           <text
-            x={width - margin - 110}
+            x={width - Math.max(40, width * 0.04) - Math.max(180, width * 0.15) / 2}
             y={30}
             textAnchor="middle"
             className={styles.sectionHeader}
@@ -651,9 +699,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
           {/* Dashed line under Content Consumer header */}
           <line
-            x1={width - margin - 220}
+            x1={width - Math.max(40, width * 0.04) - Math.max(180, width * 0.15) + 10}
             y1={40}
-            x2={width - margin}
+            x2={width - Math.max(40, width * 0.04) - 10}
             y2={40}
             stroke={theme.colors.border.medium}
             strokeWidth={1}
@@ -725,8 +773,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
         return null;
       }
 
-      const componentBoxWidth = 410;
-      const componentBoxHeight = 60;
+      // Responsive component box dimensions - optimized for less padding
+      const componentBoxWidth = Math.max(300, width * 0.2); // Smaller width, less padding
+      const componentBoxHeight = Math.max(55, height * 0.06); // Min 55px, or 6% of height
 
       return (
         <g key={exposedComponent.id}>
