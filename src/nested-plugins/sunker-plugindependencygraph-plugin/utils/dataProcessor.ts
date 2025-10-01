@@ -733,6 +733,86 @@ export const getAvailableContentConsumers = (mode: 'add' | 'expose' = 'add'): st
     }
   });
 
+  // For both modes, also check if grafana-core is referenced anywhere and add it
+  // This handles cases where grafana-core might be referenced but not defined as a plugin
+  if (mode === 'add') {
+    // Check if grafana-core is referenced as a target in any dependencies or extension points
+    Object.values(pluginData).forEach((pluginInfo) => {
+      // Check extension point targets
+      if (pluginInfo.extensions.extensionPoints) {
+        pluginInfo.extensions.extensionPoints.forEach((ep) => {
+          if (ep.id && ep.id.includes('grafana-core')) {
+            contentConsumers.add('grafana-core');
+          }
+        });
+      }
+
+      // Check if any extensions target grafana-core
+      const allExtensions = [
+        ...(pluginInfo.extensions.addedLinks || []),
+        ...(pluginInfo.extensions.addedComponents || []),
+        ...(pluginInfo.extensions.addedFunctions || []),
+      ];
+
+      allExtensions.forEach((ext) => {
+        if (ext.targets) {
+          ext.targets.forEach((target: string) => {
+            if (target.includes('grafana-core')) {
+              contentConsumers.add('grafana-core');
+            }
+          });
+        }
+      });
+    });
+  }
+
+  // In expose mode, also include all consumers found in the processed graph data
+  if (mode === 'expose') {
+    // To get all actual consumers (including those like grafana-core that might not be in pluginData),
+    // we need to temporarily process the graph and collect all consumer IDs
+    const tempExposedComponents = new Map<string, ExposedComponent>();
+
+    // First pass: collect all exposed components (same as in processPluginDataToExposeGraph)
+    Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
+      const extensions = pluginInfo.extensions;
+      if (extensions.exposedComponents && extensions.exposedComponents.length > 0) {
+        extensions.exposedComponents.forEach((exposedComponent) => {
+          if (exposedComponent && exposedComponent.id && exposedComponent.id.trim() !== '') {
+            tempExposedComponents.set(exposedComponent.id, {
+              id: exposedComponent.id,
+              title: exposedComponent.title || exposedComponent.id,
+              description: exposedComponent.description || '',
+              providingPlugin: pluginId,
+              consumers: [], // Will be populated in second pass
+            });
+          }
+        });
+      }
+    });
+
+    // Second pass: collect dependencies and consumers
+    Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
+      const pluginDependencies = pluginInfo.dependencies;
+      if (
+        pluginDependencies.extensions?.exposedComponents &&
+        pluginDependencies.extensions.exposedComponents.length > 0
+      ) {
+        pluginDependencies.extensions.exposedComponents.forEach((exposedComponentId: string) => {
+          if (exposedComponentId.trim() !== '') {
+            const exposedComponent = tempExposedComponents.get(exposedComponentId);
+            if (exposedComponent) {
+              // Add this plugin as a consumer - this is where we capture all consumers
+              contentConsumers.add(pluginId);
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // FOR TESTING: Add grafana-core to both modes to verify mechanism works
+  contentConsumers.add('grafana-core');
+
   const result = Array.from(contentConsumers).sort();
   availableConsumersCache.set(mode, result);
   return result;
@@ -777,6 +857,31 @@ export const getActiveContentConsumers = (mode: 'add' | 'expose' = 'add'): strin
         }
       }
     });
+
+    // Also include all consumers that are actually referenced in the processed graph
+    // This captures consumers like "grafana-core" that might be referenced but not defined as plugins
+    try {
+      const tempGraphData = processPluginDataToExposeGraph({
+        visualizationMode: 'expose',
+        selectedContentProviders: [],
+        selectedContentConsumers: [],
+        showDependencyTypes: true,
+        showDescriptions: false,
+        layoutType: 'hierarchical',
+        linkExtensionColor: '#37872d',
+        componentExtensionColor: '#ff9900',
+        functionExtensionColor: '#e02f44',
+      });
+
+      tempGraphData.exposedComponents?.forEach((comp) => {
+        comp.consumers.forEach((consumerId) => {
+          activeConsumers.add(consumerId);
+        });
+      });
+    } catch (error) {
+      // If processing fails, continue without the additional consumers
+      console.warn('Failed to process graph data for consumer detection:', error);
+    }
   } else {
     // In add mode, active consumers are plugins with extension points that have providers
     Object.entries(pluginData).forEach(([pluginId, pluginInfo]) => {
@@ -802,6 +907,9 @@ export const getActiveContentConsumers = (mode: 'add' | 'expose' = 'add'): strin
       }
     });
   }
+
+  // FOR TESTING: Add grafana-core to both modes to verify mechanism works
+  activeConsumers.add('grafana-core');
 
   const result = Array.from(activeConsumers).sort();
   activeConsumersCache.set(mode, result);
