@@ -63,10 +63,10 @@ export const VISUAL_CONSTANTS = {
   VERY_THICK_STROKE_WIDTH: 5,
 
   // Arrow marker dimensions
-  ARROW_WIDTH: 6,
-  ARROW_HEIGHT: 5,
-  ARROW_REF_X: 5,
-  ARROW_REF_Y: 2.5,
+  ARROW_WIDTH: 12,
+  ARROW_HEIGHT: 9,
+  ARROW_REF_X: 9,
+  ARROW_REF_Y: 4.5,
 
   // Opacity levels
   SELECTED_OPACITY: 1,

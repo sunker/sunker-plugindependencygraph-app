@@ -37,8 +37,21 @@ export const NodeRenderer: React.FC<NodeRendererProps> = ({
   let nodesToRender: NodeWithPosition[];
 
   if (isExposeMode) {
-    // In expose mode, render all nodes (both providers and consumers)
-    nodesToRender = nodes;
+    // In expose mode, only render consumer nodes (providers are now rendered as group boxes in ExtensionRenderer)
+    const contentProviders = new Set<string>();
+    const contentConsumers = new Set<string>();
+
+    if (data.exposedComponents) {
+      data.exposedComponents.forEach((comp) => {
+        contentProviders.add(comp.providingPlugin);
+        comp.consumers.forEach((consumerId) => {
+          contentConsumers.add(consumerId);
+        });
+      });
+    }
+
+    // Render section-specific consumer instances (nodes with originalId set) and exclude provider nodes
+    nodesToRender = nodes.filter((node) => node.originalId || (!contentProviders.has(node.id) && !node.originalId));
   } else {
     // In add mode, render only content provider apps on the left
     const contentProviders = new Set<string>();

@@ -90,7 +90,7 @@ export const LinkRenderer: React.FC<LinkRendererProps> = ({
         const nodeWidth = getResponsiveNodeWidth(width);
         const startX = sourceNode.x + nodeWidth / 2;
         const startY = sourceNode.y;
-        const endX = firstExtensionPos.x - 20;
+        const endX = firstExtensionPos.x - 2; // End at left edge of extension box so arrowhead shows
         const endY = groupCenterY;
 
         // Calculate control points for a curved path
@@ -146,57 +146,40 @@ export const LinkRenderer: React.FC<LinkRendererProps> = ({
 
       const isHighlighted = selectedExposedComponent === exposedComponent.id;
 
-      // Find the actual provider node on the left side (not consumer instances)
-      const providerNode = nodes.find((n) => n.id === exposedComponent.providingPlugin && !n.originalId);
-      if (providerNode) {
-        // Arrow: Provider → Its Own Component (left to center)
-        arrows.push(
-          <line
-            key={`provider-to-component-${exposedComponent.id}`}
-            x1={providerNode.x + nodeWidth / 2} // Right edge of provider box
-            y1={providerNode.y}
-            x2={componentPos.x} // Left edge of component box
-            y2={componentPos.y}
-            stroke={isHighlighted ? theme.colors.success.main : theme.colors.primary.main}
-            strokeWidth={isHighlighted ? VISUAL_CONSTANTS.SELECTED_STROKE_WIDTH : VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH}
-            markerEnd={isHighlighted ? 'url(#arrowhead-highlighted)' : 'url(#arrowhead)'}
-            opacity={
-              selectedExposedComponent && !isHighlighted
-                ? VISUAL_CONSTANTS.UNSELECTED_OPACITY
-                : VISUAL_CONSTANTS.SELECTED_OPACITY
-            }
-          />
-        );
-      }
-
-      // Arrows: Consumers → Component (right to center) - pointing to right edge of component box
+      // Arrows: Section-specific consumers → Component (within same provider section only)
       exposedComponent.consumers.forEach((consumerId) => {
-        // Find ONLY consumer instances (with originalId), NOT provider boxes
-        const consumerInstances = nodes.filter((n) => n.originalId === consumerId);
-        consumerInstances.forEach((consumerNode) => {
-          // Only draw arrow if this consumer instance is at the same provider level as this component
-          if (consumerNode.id.includes(`-at-${exposedComponent.providingPlugin}`)) {
-            arrows.push(
-              <line
-                key={`consumer-to-component-${exposedComponent.id}-${consumerNode.id}`}
-                x1={consumerNode.x - nodeWidth / 2} // Left edge of consumer box
-                y1={consumerNode.y}
-                x2={componentPos.x + componentBoxWidth} // Right edge of component box
-                y2={componentPos.y}
-                stroke={isHighlighted ? theme.colors.success.main : theme.colors.primary.main}
-                strokeWidth={
-                  isHighlighted ? VISUAL_CONSTANTS.SELECTED_STROKE_WIDTH : VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH
-                }
-                markerEnd={isHighlighted ? 'url(#arrowhead-highlighted)' : 'url(#arrowhead)'}
-                opacity={
-                  selectedExposedComponent && !isHighlighted
-                    ? VISUAL_CONSTANTS.UNSELECTED_OPACITY
-                    : VISUAL_CONSTANTS.SELECTED_OPACITY
-                }
-              />
-            );
-          }
-        });
+        // Find the section-specific consumer instance for this provider
+        const sectionConsumerNode = nodes.find(
+          (n) => n.originalId === consumerId && n.id.includes(`-at-${exposedComponent.providingPlugin}`)
+        );
+
+        if (sectionConsumerNode) {
+          // Simple straight line within the same section - adjust end position so arrowhead is visible
+          const startX = sectionConsumerNode.x - nodeWidth / 2;
+          const startY = sectionConsumerNode.y;
+          const endX = componentPos.x + componentBoxWidth - 2; // End at right edge of component box so arrowhead shows
+          const endY = componentPos.y;
+
+          arrows.push(
+            <line
+              key={`consumer-to-component-${exposedComponent.id}-${sectionConsumerNode.id}`}
+              x1={startX}
+              y1={startY}
+              x2={endX}
+              y2={endY}
+              stroke={isHighlighted ? theme.colors.success.main : theme.colors.primary.main}
+              strokeWidth={
+                isHighlighted ? VISUAL_CONSTANTS.SELECTED_STROKE_WIDTH : VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH
+              }
+              markerEnd={isHighlighted ? 'url(#arrowhead-highlighted)' : 'url(#arrowhead)'}
+              opacity={
+                selectedExposedComponent && !isHighlighted
+                  ? VISUAL_CONSTANTS.UNSELECTED_OPACITY
+                  : VISUAL_CONSTANTS.SELECTED_OPACITY
+              }
+            />
+          );
+        }
       });
     });
 

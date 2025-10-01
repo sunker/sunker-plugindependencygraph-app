@@ -67,6 +67,15 @@ export const ExtensionRenderer: React.FC<ExtensionRendererProps> = ({
       return null;
     }
 
+    // Group exposed components by their providing plugin
+    const exposedComponentGroups = new Map<string, string[]>();
+    data.exposedComponents.forEach((comp) => {
+      if (!exposedComponentGroups.has(comp.providingPlugin)) {
+        exposedComponentGroups.set(comp.providingPlugin, []);
+      }
+      exposedComponentGroups.get(comp.providingPlugin)!.push(comp.id);
+    });
+
     const componentBoxWidth = getResponsiveComponentWidth(width);
     const originalComponentHeight = getResponsiveComponentHeight(height);
     let componentBoxHeight = originalComponentHeight;
@@ -77,75 +86,134 @@ export const ExtensionRenderer: React.FC<ExtensionRendererProps> = ({
 
     return (
       <g>
-        {data.exposedComponents.map((exposedComponent) => {
-          const compPos = exposedComponentPositions.get(exposedComponent.id);
-          if (!compPos) {
+        {Array.from(exposedComponentGroups.entries()).map(([providingPlugin, componentIds], groupIndex) => {
+          const firstCompPos = exposedComponentPositions.get(componentIds[0]);
+          if (!firstCompPos) {
             return null;
           }
 
+          const groupHeight = firstCompPos.groupHeight;
+
           return (
-            <g key={exposedComponent.id}>
-              {/* Individual exposed component box */}
+            <g key={providingPlugin}>
+              {/* Provider group box */}
               <rect
-                x={compPos.x}
-                y={compPos.y - originalComponentHeight / 2}
-                width={componentBoxWidth}
-                height={componentBoxHeight}
-                fill={theme.colors.warning.main}
-                stroke={
-                  selectedExposedComponent === exposedComponent.id
-                    ? theme.colors.primary.border
-                    : theme.colors.border.strong
-                }
-                strokeWidth={
-                  selectedExposedComponent === exposedComponent.id
-                    ? VISUAL_CONSTANTS.SELECTED_STROKE_WIDTH
-                    : VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH
-                }
-                rx={VISUAL_CONSTANTS.EXTENSION_BORDER_RADIUS}
-                className={styles.extensionPointBox}
-                onClick={() =>
-                  onExposedComponentClick(selectedExposedComponent === exposedComponent.id ? null : exposedComponent.id)
-                }
-                style={{ cursor: 'pointer' }}
+                x={firstCompPos.x - 10}
+                y={firstCompPos.groupY}
+                width={componentBoxWidth + 20}
+                height={groupHeight}
+                fill={theme.colors.background.secondary}
+                stroke={theme.colors.border.strong}
+                strokeWidth={VISUAL_CONSTANTS.SELECTED_STROKE_WIDTH}
+                rx={VISUAL_CONSTANTS.GROUP_BORDER_RADIUS}
+                className={styles.extensionGroupBox}
               />
 
-              {/* Component title */}
+              {/* Exposed components inside provider box */}
+              {componentIds.map((compId) => {
+                const compPos = exposedComponentPositions.get(compId);
+                if (!compPos) {
+                  return null;
+                }
+
+                const exposedComponent = data.exposedComponents?.find((comp) => comp.id === compId);
+                if (!exposedComponent) {
+                  return null;
+                }
+
+                return (
+                  <g key={compId}>
+                    {/* Individual exposed component box */}
+                    <rect
+                      x={compPos.x}
+                      y={compPos.y - originalComponentHeight / 2}
+                      width={componentBoxWidth}
+                      height={componentBoxHeight}
+                      fill={theme.colors.warning.main}
+                      stroke={
+                        selectedExposedComponent === exposedComponent.id
+                          ? theme.colors.primary.border
+                          : theme.colors.border.strong
+                      }
+                      strokeWidth={
+                        selectedExposedComponent === exposedComponent.id
+                          ? VISUAL_CONSTANTS.SELECTED_STROKE_WIDTH
+                          : VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH
+                      }
+                      rx={VISUAL_CONSTANTS.EXTENSION_BORDER_RADIUS}
+                      className={styles.extensionPointBox}
+                      onClick={() =>
+                        onExposedComponentClick(
+                          selectedExposedComponent === exposedComponent.id ? null : exposedComponent.id
+                        )
+                      }
+                      style={{ cursor: 'pointer' }}
+                    />
+
+                    {/* Component title */}
+                    <text
+                      x={compPos.x + componentBoxWidth / 2}
+                      y={compPos.y - 5}
+                      textAnchor="middle"
+                      className={styles.extensionPointLabel}
+                      fill={theme.colors.getContrastText(theme.colors.warning.main)}
+                    >
+                      {exposedComponent.title || exposedComponent.id}
+                    </text>
+
+                    {/* Component ID - second line */}
+                    <text
+                      x={compPos.x + componentBoxWidth / 2}
+                      y={compPos.y + 15}
+                      textAnchor="middle"
+                      className={styles.extensionTypeBadge}
+                      fill={theme.colors.getContrastText(theme.colors.warning.main)}
+                    >
+                      {exposedComponent.id}
+                    </text>
+
+                    {/* Description text underneath component ID */}
+                    {options.showDescriptions &&
+                      exposedComponent?.description &&
+                      exposedComponent.description.trim() !== '' && (
+                        <text
+                          x={compPos.x + componentBoxWidth / 2}
+                          y={compPos.y + 30}
+                          textAnchor="middle"
+                          className={styles.descriptionInlineText}
+                          fill={theme.colors.getContrastText(theme.colors.warning.main)}
+                        >
+                          {exposedComponent.description}
+                        </text>
+                      )}
+                  </g>
+                );
+              })}
+
+              {/* Provider plugin name header */}
               <text
-                x={compPos.x + componentBoxWidth / 2}
-                y={compPos.y - 5}
-                textAnchor="middle"
-                className={styles.extensionPointLabel}
-                fill={theme.colors.getContrastText(theme.colors.warning.main)}
+                x={firstCompPos.x}
+                y={firstCompPos.groupY + 22}
+                textAnchor="start"
+                className={styles.definingPluginLabel}
+                fill={theme.colors.text.primary}
               >
-                {exposedComponent.title || exposedComponent.id}
+                {getDisplayName(providingPlugin)}
               </text>
 
-              {/* Component ID - second line */}
-              <text
-                x={compPos.x + componentBoxWidth / 2}
-                y={compPos.y + 15}
-                textAnchor="middle"
-                className={styles.extensionTypeBadge}
-                fill={theme.colors.getContrastText(theme.colors.warning.main)}
-              >
-                {exposedComponent.id}
-              </text>
-
-              {/* Description text underneath component ID */}
-              {options.showDescriptions &&
-                exposedComponent?.description &&
-                exposedComponent.description.trim() !== '' && (
-                  <text
-                    x={compPos.x + componentBoxWidth / 2}
-                    y={compPos.y + 30}
-                    textAnchor="middle"
-                    className={styles.descriptionInlineText}
-                    fill={theme.colors.getContrastText(theme.colors.warning.main)}
-                  >
-                    {exposedComponent.description}
-                  </text>
-                )}
+              {/* Dotted line separator between provider sections (except for the last one) */}
+              {groupIndex < Array.from(exposedComponentGroups.entries()).length - 1 && (
+                <line
+                  x1={10}
+                  y1={firstCompPos.groupY + groupHeight + 25}
+                  x2={width - 10}
+                  y2={firstCompPos.groupY + groupHeight + 25}
+                  stroke={theme.colors.border.medium}
+                  strokeWidth={2}
+                  strokeDasharray="8,4"
+                  opacity={0.8}
+                />
+              )}
             </g>
           );
         })}

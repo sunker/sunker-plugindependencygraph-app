@@ -81,19 +81,6 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
         <HeaderRenderer theme={theme} width={width} isExposeMode={isExposeMode} styles={styles} />
 
-        <LinkRenderer
-          theme={theme}
-          data={data}
-          nodes={nodes}
-          extensionPointPositions={extensionPointPositions}
-          exposedComponentPositions={exposedComponentPositions}
-          width={width}
-          isExposeMode={isExposeMode}
-          selectedExtensionPoint={selectedExtensionPoint}
-          selectedExposedComponent={selectedExposedComponent}
-          styles={styles}
-        />
-
         <NodeRenderer
           theme={theme}
           nodes={nodes}
@@ -117,6 +104,19 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           selectedExposedComponent={selectedExposedComponent}
           onExtensionPointClick={handleExtensionPointClick}
           onExposedComponentClick={handleExposedComponentClick}
+          styles={styles}
+        />
+
+        <LinkRenderer
+          theme={theme}
+          data={data}
+          nodes={nodes}
+          extensionPointPositions={extensionPointPositions}
+          exposedComponentPositions={exposedComponentPositions}
+          width={width}
+          isExposeMode={isExposeMode}
+          selectedExtensionPoint={selectedExtensionPoint}
+          selectedExposedComponent={selectedExposedComponent}
           styles={styles}
         />
       </svg>

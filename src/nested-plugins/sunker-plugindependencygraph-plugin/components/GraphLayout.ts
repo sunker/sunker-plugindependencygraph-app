@@ -106,18 +106,7 @@ const calculateExposeLayout = (
       componentGroupsByProvider.get(comp.providingPlugin)!.push(comp.id);
     });
 
-    // Create consumer mapping for positioning
-    const consumersByProvider = new Map<string, Set<string>>();
-    data.exposedComponents.forEach((comp) => {
-      if (!consumersByProvider.has(comp.providingPlugin)) {
-        consumersByProvider.set(comp.providingPlugin, new Set());
-      }
-      comp.consumers.forEach((consumerId) => {
-        consumersByProvider.get(comp.providingPlugin)!.add(consumerId);
-      });
-    });
-
-    // Consumer positioning
+    // Consumer positioning - position consumers per provider section (not globally)
     const rightMargin = getRightMargin(width);
     const consumerX = width - rightMargin - getResponsiveNodeWidth(width) / 2;
 
@@ -127,14 +116,15 @@ const calculateExposeLayout = (
       componentSpacing += LAYOUT_CONSTANTS.DESCRIPTION_EXTRA_SPACING;
     }
 
-    const groupSpacing = getResponsiveGroupSpacing(height);
+    const groupSpacing = getResponsiveGroupSpacing(height) + 30; // Extra space for dotted lines
     let currentGroupY = margin + LAYOUT_CONSTANTS.HEADER_Y_OFFSET;
 
+    // Position consumers per provider section - each consumer appears once per provider they consume from
     Array.from(componentGroupsByProvider.entries()).forEach(([providingPlugin, componentIds]) => {
       const groupHeight = componentIds.length * componentSpacing + 70;
       const groupCenterY = currentGroupY + groupHeight / 2;
 
-      // Position provider node
+      // Position provider node (for layout calculation, but won't be rendered)
       const providerNode = providerNodes.find((node) => node.id === providingPlugin);
       if (providerNode) {
         const nodeWidth = getResponsiveNodeWidth(width);
@@ -146,25 +136,33 @@ const calculateExposeLayout = (
         });
       }
 
-      // Position consumers for this provider
-      const consumerIds = consumersByProvider.get(providingPlugin);
-      if (consumerIds) {
-        const consumerArray = Array.from(consumerIds);
-        consumerArray.forEach((consumerId, consumerIndex) => {
-          const consumerNode = data.nodes.find((n) => n.id === consumerId);
-          if (consumerNode) {
-            const consumerY = calculateConsumerY(consumerArray.length, consumerIndex, currentGroupY, groupHeight);
+      // Find consumers for this specific provider section
+      const sectionConsumers = new Set<string>();
+      data.exposedComponents.forEach((comp) => {
+        if (comp.providingPlugin === providingPlugin) {
+          comp.consumers.forEach((consumerId) => {
+            sectionConsumers.add(consumerId);
+          });
+        }
+      });
 
-            result.push({
-              ...consumerNode,
-              id: `${consumerId}-at-${providingPlugin}`,
-              originalId: consumerId,
-              x: consumerX,
-              y: consumerY,
-            });
-          }
-        });
-      }
+      // Position consumer instances for this provider section
+      const sectionConsumerArray = Array.from(sectionConsumers);
+      const consumerSpacing = Math.max(componentSpacing, 60);
+      const consumersStartY = currentGroupY + 30; // Start within the section
+
+      sectionConsumerArray.forEach((consumerId, consumerIndex) => {
+        const consumerNode = data.nodes.find((n) => n.id === consumerId);
+        if (consumerNode) {
+          result.push({
+            ...consumerNode,
+            id: `${consumerId}-at-${providingPlugin}`, // Unique ID for this section instance
+            originalId: consumerId, // Keep track of original ID
+            x: consumerX,
+            y: consumersStartY + consumerIndex * consumerSpacing,
+          });
+        }
+      });
 
       currentGroupY += groupHeight + groupSpacing;
     });
@@ -351,9 +349,14 @@ export const getExposedComponentPositions = (
     componentSpacing += LAYOUT_CONSTANTS.DESCRIPTION_EXTRA_SPACING;
   }
 
-  const groupSpacing = getResponsiveGroupSpacing(height);
+  const groupSpacing = getResponsiveGroupSpacing(height) + 30; // Extra space for dotted lines
   const componentBoxWidth = getResponsiveComponentWidth(width);
-  const centerX = width / 2 - componentBoxWidth / 2;
+  const nodeWidth = getResponsiveNodeWidth(width);
+
+  // Position components inside their provider boxes instead of at center
+  // Ensure provider boxes have enough space and don't overflow left side
+  const providerBoxX = margin + 10; // Provider box starts with margin from left edge
+  const componentX = providerBoxX + 10; // Position component inside provider box with padding from left edge
 
   let currentGroupY = margin + LAYOUT_CONSTANTS.HEADER_Y_OFFSET;
 
@@ -362,7 +365,7 @@ export const getExposedComponentPositions = (
 
     componentIds.forEach((compId, index) => {
       positions.set(compId, {
-        x: centerX,
+        x: componentX,
         y: currentGroupY + 60 + index * componentSpacing,
         groupY: currentGroupY,
         groupHeight: groupHeight,

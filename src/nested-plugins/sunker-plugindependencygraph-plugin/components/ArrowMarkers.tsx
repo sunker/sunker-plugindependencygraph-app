@@ -23,13 +23,13 @@ export const ArrowMarkers: React.FC<ArrowMarkersProps> = ({ theme }) => {
         refX={VISUAL_CONSTANTS.ARROW_REF_X}
         refY={VISUAL_CONSTANTS.ARROW_REF_Y}
         orient="auto"
-        markerUnits="strokeWidth"
+        markerUnits="userSpaceOnUse"
       >
         <polygon
           points={`0 0, ${VISUAL_CONSTANTS.ARROW_WIDTH} ${VISUAL_CONSTANTS.ARROW_REF_Y}, 0 ${VISUAL_CONSTANTS.ARROW_HEIGHT}`}
           fill={theme.colors.primary.main}
           stroke={theme.colors.primary.main}
-          strokeWidth="1"
+          strokeWidth="0.5"
         />
       </marker>
 
@@ -41,13 +41,13 @@ export const ArrowMarkers: React.FC<ArrowMarkersProps> = ({ theme }) => {
         refX={VISUAL_CONSTANTS.ARROW_REF_X}
         refY={VISUAL_CONSTANTS.ARROW_REF_Y}
         orient="auto"
-        markerUnits="strokeWidth"
+        markerUnits="userSpaceOnUse"
       >
         <polygon
           points={`0 0, ${VISUAL_CONSTANTS.ARROW_WIDTH} ${VISUAL_CONSTANTS.ARROW_REF_Y}, 0 ${VISUAL_CONSTANTS.ARROW_HEIGHT}`}
           fill={theme.colors.success.main}
           stroke={theme.colors.success.main}
-          strokeWidth="1"
+          strokeWidth="0.5"
         />
       </marker>
     </defs>
