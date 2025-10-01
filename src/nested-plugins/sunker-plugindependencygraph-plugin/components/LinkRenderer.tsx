@@ -22,6 +22,7 @@ interface LinkRendererProps {
   selectedExtensionPoint: string | null;
   selectedExposedComponent: string | null;
   selectedContentConsumer: string | null;
+  selectedContentProvider: string | null;
   styles: {
     link: string;
     linkHighlighted: string;
@@ -39,6 +40,7 @@ export const LinkRenderer: React.FC<LinkRendererProps> = ({
   selectedExtensionPoint,
   selectedExposedComponent,
   selectedContentConsumer,
+  selectedContentProvider,
   styles,
 }) => {
   if (isExposeMode) {
@@ -102,8 +104,10 @@ export const LinkRenderer: React.FC<LinkRendererProps> = ({
 
         const pathData = `M ${startX} ${startY} C ${controlX1} ${startY}, ${controlX2} ${endY}, ${endX} ${endY}`;
 
-        // Check if this arrow points to the selected extension point
-        const isHighlighted = selectedExtensionPoint ? extensionPointIds.includes(selectedExtensionPoint) : false;
+        // Check if this arrow should be highlighted
+        const isHighlighted =
+          (selectedExtensionPoint ? extensionPointIds.includes(selectedExtensionPoint) : false) ||
+          selectedContentProvider === sourceId;
 
         arrows.push(
           <g key={`${sourceId}-${definingPlugin}-${arrowIndex}`}>
@@ -116,7 +120,7 @@ export const LinkRenderer: React.FC<LinkRendererProps> = ({
               markerEnd={isHighlighted ? 'url(#arrowhead-highlighted)' : 'url(#arrowhead)'}
               className={isHighlighted ? styles.linkHighlighted : styles.link}
               opacity={
-                selectedExtensionPoint && !isHighlighted
+                (selectedExtensionPoint || selectedContentProvider) && !isHighlighted
                   ? VISUAL_CONSTANTS.UNSELECTED_OPACITY
                   : VISUAL_CONSTANTS.SELECTED_OPACITY
               }

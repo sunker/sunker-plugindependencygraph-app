@@ -29,6 +29,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   const [selectedExtensionPoint, setSelectedExtensionPoint] = useState<string | null>(null);
   const [selectedExposedComponent, setSelectedExposedComponent] = useState<string | null>(null);
   const [selectedContentConsumer, setSelectedContentConsumer] = useState<string | null>(null);
+  const [selectedContentProvider, setSelectedContentProvider] = useState<string | null>(null);
 
   const isExposeMode = options.visualizationMode === 'expose';
   const styles = getGraphStyles(theme);
@@ -59,6 +60,10 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   // Event handlers
   const handleExtensionPointClick = (id: string | null) => {
     setSelectedExtensionPoint(selectedExtensionPoint === id ? null : id);
+    // Clear provider selection when selecting an extension point
+    if (id !== null && selectedContentProvider !== null) {
+      setSelectedContentProvider(null);
+    }
   };
 
   const handleExposedComponentClick = (id: string | null) => {
@@ -74,6 +79,14 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
     // Clear exposed component selection when selecting a consumer
     if (id !== null && selectedExposedComponent !== null) {
       setSelectedExposedComponent(null);
+    }
+  };
+
+  const handleContentProviderClick = (id: string | null) => {
+    setSelectedContentProvider(selectedContentProvider === id ? null : id);
+    // Clear extension point selection when selecting a provider
+    if (id !== null && selectedExtensionPoint !== null) {
+      setSelectedExtensionPoint(null);
     }
   };
 
@@ -102,7 +115,9 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           height={height}
           isExposeMode={isExposeMode}
           selectedContentConsumer={selectedContentConsumer}
+          selectedContentProvider={selectedContentProvider}
           onContentConsumerClick={handleContentConsumerClick}
+          onContentProviderClick={handleContentProviderClick}
           styles={styles}
         />
 
@@ -133,6 +148,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           selectedExtensionPoint={selectedExtensionPoint}
           selectedExposedComponent={selectedExposedComponent}
           selectedContentConsumer={selectedContentConsumer}
+          selectedContentProvider={selectedContentProvider}
           styles={styles}
         />
       </svg>

@@ -19,7 +19,9 @@ interface NodeRendererProps {
   height: number;
   isExposeMode: boolean;
   selectedContentConsumer: string | null;
+  selectedContentProvider: string | null;
   onContentConsumerClick: (id: string | null) => void;
+  onContentProviderClick: (id: string | null) => void;
   styles: {
     node: string;
     nodeBox: string;
@@ -35,7 +37,9 @@ export const NodeRenderer: React.FC<NodeRendererProps> = ({
   height,
   isExposeMode,
   selectedContentConsumer,
+  selectedContentProvider,
   onContentConsumerClick,
+  onContentProviderClick,
   styles,
 }) => {
   let nodesToRender: NodeWithPosition[];
@@ -85,24 +89,29 @@ export const NodeRenderer: React.FC<NodeRendererProps> = ({
             height={nodeHeight}
             fill={theme.colors.primary.main}
             stroke={
-              isExposeMode && selectedContentConsumer === (node.originalId || node.id)
+              (isExposeMode && selectedContentConsumer === (node.originalId || node.id)) ||
+              (!isExposeMode && selectedContentProvider === node.id)
                 ? theme.colors.primary.border
                 : theme.colors.border.strong
             }
             strokeWidth={
-              isExposeMode && selectedContentConsumer === (node.originalId || node.id)
+              (isExposeMode && selectedContentConsumer === (node.originalId || node.id)) ||
+              (!isExposeMode && selectedContentProvider === node.id)
                 ? VISUAL_CONSTANTS.THICK_STROKE_WIDTH
                 : VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH
             }
             rx={VISUAL_CONSTANTS.NODE_BORDER_RADIUS}
             className={styles.nodeBox}
-            onClick={() =>
-              isExposeMode &&
-              onContentConsumerClick(
-                selectedContentConsumer === (node.originalId || node.id) ? null : node.originalId || node.id
-              )
-            }
-            style={isExposeMode ? { cursor: 'pointer' } : {}}
+            onClick={() => {
+              if (isExposeMode) {
+                onContentConsumerClick(
+                  selectedContentConsumer === (node.originalId || node.id) ? null : node.originalId || node.id
+                );
+              } else {
+                onContentProviderClick(selectedContentProvider === node.id ? null : node.id);
+              }
+            }}
+            style={{ cursor: 'pointer' }}
           />
 
           {/* App ID label */}
