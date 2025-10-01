@@ -11,6 +11,7 @@ import {
   VISUAL_CONSTANTS,
   getResponsiveComponentHeight,
   getResponsiveComponentWidth,
+  getResponsiveGroupSpacing,
 } from '../constants';
 import { GraphData, PanelOptions } from '../types';
 
@@ -98,9 +99,9 @@ export const ExtensionRenderer: React.FC<ExtensionRendererProps> = ({
             <g key={providingPlugin}>
               {/* Provider group box */}
               <rect
-                x={firstCompPos.x - 10}
+                x={firstCompPos.x - 20}
                 y={firstCompPos.groupY}
-                width={componentBoxWidth + 20}
+                width={componentBoxWidth + 40}
                 height={groupHeight}
                 fill={theme.colors.background.secondary}
                 stroke={theme.colors.border.strong}
@@ -193,7 +194,7 @@ export const ExtensionRenderer: React.FC<ExtensionRendererProps> = ({
               {/* Provider plugin name header */}
               <text
                 x={firstCompPos.x}
-                y={firstCompPos.groupY + 22}
+                y={firstCompPos.groupY + 25}
                 textAnchor="start"
                 className={styles.definingPluginLabel}
                 fill={theme.colors.text.primary}
@@ -205,9 +206,9 @@ export const ExtensionRenderer: React.FC<ExtensionRendererProps> = ({
               {groupIndex < Array.from(exposedComponentGroups.entries()).length - 1 && (
                 <line
                   x1={10}
-                  y1={firstCompPos.groupY + groupHeight + 25}
+                  y1={firstCompPos.groupY + groupHeight + (getResponsiveGroupSpacing(height) + 30) / 2}
                   x2={width - 10}
-                  y2={firstCompPos.groupY + groupHeight + 25}
+                  y2={firstCompPos.groupY + groupHeight + (getResponsiveGroupSpacing(height) + 30) / 2}
                   stroke={theme.colors.border.medium}
                   strokeWidth={2}
                   strokeDasharray="8,4"

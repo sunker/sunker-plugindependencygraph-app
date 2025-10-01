@@ -117,11 +117,11 @@ const calculateExposeLayout = (
     }
 
     const groupSpacing = getResponsiveGroupSpacing(height) + 30; // Extra space for dotted lines
-    let currentGroupY = margin + LAYOUT_CONSTANTS.HEADER_Y_OFFSET;
+    let currentGroupY = margin + LAYOUT_CONSTANTS.HEADER_LINE_Y_OFFSET + 10; // Start extremely close to headers and dotted lines
 
     // Position consumers per provider section - each consumer appears once per provider they consume from
     Array.from(componentGroupsByProvider.entries()).forEach(([providingPlugin, componentIds]) => {
-      const groupHeight = componentIds.length * componentSpacing + 70;
+      const groupHeight = 67 + componentIds.length * componentSpacing + 10; // Header space + components + bottom padding
       const groupCenterY = currentGroupY + groupHeight / 2;
 
       // Position provider node (for layout calculation, but won't be rendered)
@@ -138,7 +138,7 @@ const calculateExposeLayout = (
 
       // Find consumers for this specific provider section
       const sectionConsumers = new Set<string>();
-      data.exposedComponents.forEach((comp) => {
+      data.exposedComponents?.forEach((comp) => {
         if (comp.providingPlugin === providingPlugin) {
           comp.consumers.forEach((consumerId) => {
             sectionConsumers.add(consumerId);
@@ -149,7 +149,7 @@ const calculateExposeLayout = (
       // Position consumer instances for this provider section
       const sectionConsumerArray = Array.from(sectionConsumers);
       const consumerSpacing = Math.max(componentSpacing, 60);
-      const consumersStartY = currentGroupY + 30; // Start within the section
+      const consumersStartY = currentGroupY + 57; // Start within the section
 
       sectionConsumerArray.forEach((consumerId, consumerIndex) => {
         const consumerNode = data.nodes.find((n) => n.id === consumerId);
@@ -209,36 +209,6 @@ const calculateAddLayout = (
   });
 
   return result;
-};
-
-/**
- * Calculate Y position for consumers in expose mode
- */
-const calculateConsumerY = (
-  totalConsumers: number,
-  consumerIndex: number,
-  groupY: number,
-  groupHeight: number
-): number => {
-  if (totalConsumers === 1) {
-    // Single consumer: center it in the group
-    return groupY + groupHeight / 2;
-  }
-
-  // Multiple consumers: ensure minimum spacing
-  const minSpacing = LAYOUT_CONSTANTS.MIN_NODE_SPACING;
-  const startY = groupY + 60;
-  const totalSpacing = (totalConsumers - 1) * minSpacing;
-  const availableHeight = groupHeight - 120;
-
-  if (totalSpacing <= availableHeight) {
-    // Use minimum spacing if it fits
-    return startY + consumerIndex * minSpacing;
-  } else {
-    // Use available space evenly if minimum spacing doesn't fit
-    const actualSpacing = availableHeight / (totalConsumers - 1);
-    return startY + consumerIndex * actualSpacing;
-  }
 };
 
 /**
@@ -350,23 +320,21 @@ export const getExposedComponentPositions = (
   }
 
   const groupSpacing = getResponsiveGroupSpacing(height) + 30; // Extra space for dotted lines
-  const componentBoxWidth = getResponsiveComponentWidth(width);
-  const nodeWidth = getResponsiveNodeWidth(width);
 
   // Position components inside their provider boxes instead of at center
   // Ensure provider boxes have enough space and don't overflow left side
   const providerBoxX = margin + 10; // Provider box starts with margin from left edge
-  const componentX = providerBoxX + 10; // Position component inside provider box with padding from left edge
+  const componentX = providerBoxX + 20; // Position component inside provider box with 20px left padding
 
-  let currentGroupY = margin + LAYOUT_CONSTANTS.HEADER_Y_OFFSET;
+  let currentGroupY = margin + LAYOUT_CONSTANTS.HEADER_LINE_Y_OFFSET + 10; // Start extremely close to headers and dotted lines
 
   Array.from(exposedComponentGroups.entries()).forEach(([providingPlugin, componentIds]) => {
-    const groupHeight = componentIds.length * componentSpacing + 70;
+    const groupHeight = 40 + componentIds.length * componentSpacing + 10; // Header space + components + bottom padding
 
     componentIds.forEach((compId, index) => {
       positions.set(compId, {
         x: componentX,
-        y: currentGroupY + 60 + index * componentSpacing,
+        y: currentGroupY + 67 + index * componentSpacing,
         groupY: currentGroupY,
         groupHeight: groupHeight,
       });
@@ -408,7 +376,7 @@ export const calculateContentHeight = (
   }
 
   const groupSpacing = getResponsiveGroupSpacing(height);
-  let totalHeight = margin + 135; // Start with margin + header space
+  let totalHeight = margin + LAYOUT_CONSTANTS.HEADER_LINE_Y_OFFSET + 40; // Start with margin + header space
 
   if (isExposeMode && data.exposedComponents && data.exposedComponents.length > 0) {
     // Group exposed components by their providing plugin
@@ -421,7 +389,7 @@ export const calculateContentHeight = (
     });
 
     Array.from(exposedComponentGroups.entries()).forEach(([_, componentIds]) => {
-      const groupHeight = componentIds.length * spacing + 70;
+      const groupHeight = 67 + componentIds.length * spacing + 10; // Header space + components + bottom padding
       totalHeight += groupHeight + groupSpacing;
     });
   } else if (!isExposeMode && data.extensionPoints && data.extensionPoints.length > 0) {
@@ -435,7 +403,7 @@ export const calculateContentHeight = (
     });
 
     Array.from(extensionPointGroups.entries()).forEach(([_, extensionPointIds]) => {
-      const groupHeight = extensionPointIds.length * spacing + 70;
+      const groupHeight = extensionPointIds.length * spacing + 5;
       totalHeight += groupHeight + groupSpacing;
     });
   } else {

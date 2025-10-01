@@ -65,28 +65,6 @@ export const HeaderRenderer: React.FC<HeaderRendererProps> = ({ theme, width, is
           strokeDasharray="5,5"
         />
 
-        {/* Components Header (center) */}
-        <text
-          x={width / 2}
-          y={LAYOUT_CONSTANTS.SUB_HEADER_Y_OFFSET}
-          textAnchor="middle"
-          className={styles.sectionHeader}
-          fill={theme.colors.text.primary}
-        >
-          {MODE_LABELS.COMPONENTS}
-        </text>
-
-        {/* Dashed line under Components header */}
-        <line
-          x1={width / 2 - 100}
-          y1={LAYOUT_CONSTANTS.HEADER_LINE_Y_OFFSET}
-          x2={width / 2 + 100}
-          y2={LAYOUT_CONSTANTS.HEADER_LINE_Y_OFFSET}
-          stroke={theme.colors.border.medium}
-          strokeWidth={1}
-          strokeDasharray="5,5"
-        />
-
         {/* Content Consumer Header (right in expose mode) */}
         <text
           x={width - getRightMargin(width) - nodeWidth / 2}

@@ -37,9 +37,9 @@ export const LAYOUT_CONSTANTS = {
   DESCRIPTION_EXTRA_SPACING: 20,
 
   // Header positioning
-  HEADER_Y_OFFSET: 20,
-  SUB_HEADER_Y_OFFSET: 55,
-  HEADER_LINE_Y_OFFSET: 65,
+  HEADER_Y_OFFSET: 25, // Main "Expose APIs" heading
+  SUB_HEADER_Y_OFFSET: 60, // "Content provider/consumer" headings
+  HEADER_LINE_Y_OFFSET: 70, // Dotted lines under sub-headers
 
   // Arrow positioning
   ARROW_OFFSET: 20,
