@@ -28,6 +28,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
   const [nodes, setNodes] = useState<NodeWithPosition[]>([]);
   const [selectedExtensionPoint, setSelectedExtensionPoint] = useState<string | null>(null);
   const [selectedExposedComponent, setSelectedExposedComponent] = useState<string | null>(null);
+  const [selectedContentConsumer, setSelectedContentConsumer] = useState<string | null>(null);
 
   const isExposeMode = options.visualizationMode === 'expose';
   const styles = getGraphStyles(theme);
@@ -62,6 +63,18 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
 
   const handleExposedComponentClick = (id: string | null) => {
     setSelectedExposedComponent(selectedExposedComponent === id ? null : id);
+    // Clear consumer selection when selecting an exposed component
+    if (id !== null && selectedContentConsumer !== null) {
+      setSelectedContentConsumer(null);
+    }
+  };
+
+  const handleContentConsumerClick = (id: string | null) => {
+    setSelectedContentConsumer(selectedContentConsumer === id ? null : id);
+    // Clear exposed component selection when selecting a consumer
+    if (id !== null && selectedExposedComponent !== null) {
+      setSelectedExposedComponent(null);
+    }
   };
 
   // Empty state check
@@ -88,6 +101,8 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           width={width}
           height={height}
           isExposeMode={isExposeMode}
+          selectedContentConsumer={selectedContentConsumer}
+          onContentConsumerClick={handleContentConsumerClick}
           styles={styles}
         />
 
@@ -117,6 +132,7 @@ export const DependencyGraph: React.FC<DependencyGraphProps> = ({ data, options,
           isExposeMode={isExposeMode}
           selectedExtensionPoint={selectedExtensionPoint}
           selectedExposedComponent={selectedExposedComponent}
+          selectedContentConsumer={selectedContentConsumer}
           styles={styles}
         />
       </svg>

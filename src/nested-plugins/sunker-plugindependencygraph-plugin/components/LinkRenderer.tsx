@@ -21,6 +21,7 @@ interface LinkRendererProps {
   isExposeMode: boolean;
   selectedExtensionPoint: string | null;
   selectedExposedComponent: string | null;
+  selectedContentConsumer: string | null;
   styles: {
     link: string;
     linkHighlighted: string;
@@ -37,6 +38,7 @@ export const LinkRenderer: React.FC<LinkRendererProps> = ({
   isExposeMode,
   selectedExtensionPoint,
   selectedExposedComponent,
+  selectedContentConsumer,
   styles,
 }) => {
   if (isExposeMode) {
@@ -144,8 +146,6 @@ export const LinkRenderer: React.FC<LinkRendererProps> = ({
         return;
       }
 
-      const isHighlighted = selectedExposedComponent === exposedComponent.id;
-
       // Arrows: Section-specific consumers → Component (within same provider section only)
       exposedComponent.consumers.forEach((consumerId) => {
         // Find the section-specific consumer instance for this provider
@@ -154,6 +154,10 @@ export const LinkRenderer: React.FC<LinkRendererProps> = ({
         );
 
         if (sectionConsumerNode) {
+          // Check if this specific arrow should be highlighted
+          const isThisArrowHighlighted =
+            selectedExposedComponent === exposedComponent.id || selectedContentConsumer === consumerId;
+
           // Simple straight line within the same section - adjust end position so arrowhead is visible
           const startX = sectionConsumerNode.x - nodeWidth / 2;
           const startY = sectionConsumerNode.y;
@@ -167,13 +171,13 @@ export const LinkRenderer: React.FC<LinkRendererProps> = ({
               y1={startY}
               x2={endX}
               y2={endY}
-              stroke={isHighlighted ? theme.colors.success.main : theme.colors.primary.main}
+              stroke={isThisArrowHighlighted ? theme.colors.success.main : theme.colors.primary.main}
               strokeWidth={
-                isHighlighted ? VISUAL_CONSTANTS.SELECTED_STROKE_WIDTH : VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH
+                isThisArrowHighlighted ? VISUAL_CONSTANTS.SELECTED_STROKE_WIDTH : VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH
               }
-              markerEnd={isHighlighted ? 'url(#arrowhead-highlighted)' : 'url(#arrowhead)'}
+              markerEnd={isThisArrowHighlighted ? 'url(#arrowhead-highlighted)' : 'url(#arrowhead)'}
               opacity={
-                selectedExposedComponent && !isHighlighted
+                (selectedExposedComponent || selectedContentConsumer) && !isThisArrowHighlighted
                   ? VISUAL_CONSTANTS.UNSELECTED_OPACITY
                   : VISUAL_CONSTANTS.SELECTED_OPACITY
               }

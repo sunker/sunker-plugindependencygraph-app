@@ -18,6 +18,8 @@ interface NodeRendererProps {
   width: number;
   height: number;
   isExposeMode: boolean;
+  selectedContentConsumer: string | null;
+  onContentConsumerClick: (id: string | null) => void;
   styles: {
     node: string;
     nodeBox: string;
@@ -32,6 +34,8 @@ export const NodeRenderer: React.FC<NodeRendererProps> = ({
   width,
   height,
   isExposeMode,
+  selectedContentConsumer,
+  onContentConsumerClick,
   styles,
 }) => {
   let nodesToRender: NodeWithPosition[];
@@ -80,10 +84,25 @@ export const NodeRenderer: React.FC<NodeRendererProps> = ({
             width={nodeWidth}
             height={nodeHeight}
             fill={theme.colors.primary.main}
-            stroke={theme.colors.border.strong}
-            strokeWidth={VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH}
+            stroke={
+              isExposeMode && selectedContentConsumer === (node.originalId || node.id)
+                ? theme.colors.primary.border
+                : theme.colors.border.strong
+            }
+            strokeWidth={
+              isExposeMode && selectedContentConsumer === (node.originalId || node.id)
+                ? VISUAL_CONSTANTS.THICK_STROKE_WIDTH
+                : VISUAL_CONSTANTS.DEFAULT_STROKE_WIDTH
+            }
             rx={VISUAL_CONSTANTS.NODE_BORDER_RADIUS}
             className={styles.nodeBox}
+            onClick={() =>
+              isExposeMode &&
+              onContentConsumerClick(
+                selectedContentConsumer === (node.originalId || node.id) ? null : node.originalId || node.id
+              )
+            }
+            style={isExposeMode ? { cursor: 'pointer' } : {}}
           />
 
           {/* App ID label */}
